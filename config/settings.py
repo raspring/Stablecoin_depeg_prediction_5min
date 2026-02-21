@@ -29,6 +29,7 @@ STABLECOINS = {
         "ethereum_contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
         "binance_pairs": ["BTCUSDT", "ETHUSDT", "USDCUSDT"],
         "coinapi_symbols": ["IDX_REFRATE_VWAP_USDT"],
+        "orderbook_symbol": "KRAKEN_SPOT_USDT_USD",   # Most liquid direct fiat pair
     },
     "usdc": {
         "name": "USD Coin",
@@ -41,6 +42,7 @@ STABLECOINS = {
         "ethereum_contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "binance_pairs": ["BTCUSDC", "ETHUSDC", "USDCUSDT"],
         "coinapi_symbols": ["IDX_REFRATE_VWAP_USDC"],
+        "orderbook_symbol": "COINBASE_SPOT_USDC_USD",  # Coinbase issues USDC — deepest book
     },
     "dai": {
         "name": "Dai",
@@ -53,6 +55,7 @@ STABLECOINS = {
         "ethereum_contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
         "binance_pairs": ["DAIUSDT"],
         "coinapi_symbols": ["IDX_REFRATE_VWAP_DAI"],
+        "orderbook_symbol": "KRAKEN_SPOT_DAI_USD",
     },
     "busd": {
         "name": "Binance USD",
@@ -65,6 +68,7 @@ STABLECOINS = {
         "ethereum_contract": "0x4Fabb145d64652a948d72533023f6E7A623C7C53",
         "binance_pairs": ["BTCBUSD", "ETHBUSD"],
         "coinapi_symbols": ["IDX_REFRATE_VWAP_BUSD"],
+        "orderbook_symbol": "BINANCE_SPOT_BUSD_USDT",  # Binance was primary venue
     },
     "ust": {
         "name": "TerraUSD",
@@ -77,6 +81,7 @@ STABLECOINS = {
         "ethereum_contract": None,    # Terra-native; bridged via Wormhole but not native ERC-20
         "binance_pairs": ["USTUSDT", "USTBUSD"],
         "coinapi_symbols": ["IDX_REFRATE_VWAP_UST"],
+        "orderbook_symbol": "BINANCE_SPOT_UST_USDT",   # Binance was primary venue
     },
     "usde": {
         "name": "Ethena USDe",
@@ -89,6 +94,7 @@ STABLECOINS = {
         "ethereum_contract": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
         "binance_pairs": ["USDEUSDT"],
         "coinapi_symbols": ["IDX_REFRATE_VWAP_USDE"],
+        "orderbook_symbol": "BINANCE_SPOT_USDE_USDT",
     },
     "rlusd": {
         "name": "Ripple USD",
@@ -101,5 +107,6 @@ STABLECOINS = {
         "ethereum_contract": "0x8292Bb45bf1Ee4d14D77B5Ea4e2C33f63b0f33b7",  # Verify
         "binance_pairs": [],          # Limited exchange listings as of early 2025
         "coinapi_symbols": ["IDX_REFRATE_VWAP_RLUSD"],
+        "orderbook_symbol": None,     # Verify once listings mature
     },
 }

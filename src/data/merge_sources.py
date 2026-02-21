@@ -88,6 +88,15 @@ def load_fred() -> pd.DataFrame:
     return df.set_index("date").sort_index()
 
 
+def load_orderbook(coin_key: str) -> pd.DataFrame:
+    path = RAW_DIR / "orderbook" / f"{coin_key}_orderbook_5m.parquet"
+    if not path.exists():
+        return pd.DataFrame()
+    df = pd.read_parquet(path)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return df.drop(columns=["coin", "symbol_id"], errors="ignore").set_index("timestamp").sort_index()
+
+
 def load_market() -> pd.DataFrame:
     path = RAW_DIR / "market" / "market_daily.parquet"
     if not path.exists():
@@ -123,6 +132,11 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
         result = result.join(binance_df, how="left")
     if not coinapi_df.empty:
         result = result.join(coinapi_df, how="left")
+
+    ob_df = load_orderbook(coin_key)
+    if not ob_df.empty:
+        result = result.join(ob_df, how="left")
+        print(f"    orderbook: joined ({len(ob_df):,} 5m rows)")
 
     # Forward-fill daily sources
     print(f"  Loading and forward-filling daily sources...")
