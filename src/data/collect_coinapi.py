@@ -1,17 +1,22 @@
 """
-Collect 5-minute OHLCV data from CoinAPI for direct fiat pairs.
+Collect 5-minute OHLCV data from CoinAPI Indexes API.
+
+Uses the cross-exchange VWAP index (IDX_REFRATE_VWAP_{COIN}) which provides
+a volume-weighted price aggregated across all exchanges — more robust than
+any single exchange feed for depeg detection.
 
 Requires COINAPI_KEY environment variable (or .env file).
-Used for: USDTUSD, USDCUSD, DAIUSD, and other exchange-native fiat pairs
-that are unavailable via Binance's free public API.
+Sign up at https://www.coinapi.io/products/indexes-api
 
-CoinAPI docs: https://docs.coinapi.io/market-data/rest-api/ohlcv
-Symbol format: {EXCHANGE}_SPOT_{BASE}_{QUOTE}  e.g. KRAKEN_SPOT_USDT_USD
+API base: https://rest-api.indexes.coinapi.io/v1
+Endpoint: GET /indexes/{index_id}/timeseries
+  Required params: period_id, time_start, time_end
+  Max records per request: 100,000
 """
 
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -28,35 +33,35 @@ except ImportError:
 
 import requests
 
-BASE_URL = "https://rest.coinapi.io/v1"
+BASE_URL = "https://rest-api.indexes.coinapi.io/v1"
 PERIOD_ID = "5MIN"
-PAGE_LIMIT = 100_000  # CoinAPI max per request
-RATE_LIMIT_DELAY = 0.5  # seconds between requests
+PAGE_LIMIT = 100_000  # max records per request (~347 days of 5m data)
+RATE_LIMIT_DELAY = 0.5
 
 
 def _get_api_key() -> str:
     key = os.getenv("COINAPI_KEY")
     if not key:
         raise EnvironmentError(
-            "COINAPI_KEY not set. Add it to your .env file or environment.\n"
-            "Sign up at https://www.coinapi.io/"
+            "COINAPI_KEY not set. Add it to your .env file.\n"
+            "Sign up at https://www.coinapi.io/products/indexes-api"
         )
     return key
 
 
-def get_ohlcv(
-    symbol_id: str,
-    start: datetime,
-    end: datetime,
+def fetch_timeseries(
+    index_id: str,
+    time_start: datetime,
+    time_end: datetime,
     api_key: str,
 ) -> list[dict]:
-    """Fetch one page of OHLCV records from CoinAPI."""
-    url = f"{BASE_URL}/ohlcv/{symbol_id}/history"
+    """Fetch one page of timeseries from the Index API."""
+    url = f"{BASE_URL}/indexes/{index_id}/timeseries"
     headers = {"X-CoinAPI-Key": api_key}
     params = {
         "period_id": PERIOD_ID,
-        "time_start": start.strftime("%Y-%m-%dT%H:%M:%S"),
-        "time_end": end.strftime("%Y-%m-%dT%H:%M:%S"),
+        "time_start": time_start.strftime("%Y-%m-%dT%H:%M:%S"),
+        "time_end": time_end.strftime("%Y-%m-%dT%H:%M:%S"),
         "limit": PAGE_LIMIT,
     }
     response = requests.get(url, headers=headers, params=params, timeout=60)
@@ -65,69 +70,70 @@ def get_ohlcv(
     return response.json()
 
 
-def collect_symbol(
-    symbol_id: str,
+def collect_index(
+    index_id: str,
     start_date: datetime,
     end_date: datetime = None,
     api_key: str = None,
 ) -> pd.DataFrame:
     """
-    Collect full historical 5m OHLCV for a CoinAPI symbol with pagination.
+    Collect full historical 5m timeseries for a CoinAPI index with pagination.
+
+    The Index API requires time_end on every request, so we chunk in ~347-day
+    windows (100k records × 5 min each).
 
     Returns DataFrame with columns:
-        timestamp, symbol_id, open, high, low, close, volume, trades
+        timestamp, index_id, open, high, low, close
     """
     if api_key is None:
         api_key = _get_api_key()
-
     if end_date is None:
         end_date = datetime.now(timezone.utc)
 
     all_records = []
     current_start = start_date
 
-    print(f"  Collecting {symbol_id}...")
+    print(f"  Collecting {index_id}...")
 
     while current_start < end_date:
-        records = get_ohlcv(symbol_id, current_start, end_date, api_key)
+        # Each page covers at most ~347 days; use full remaining range and rely on limit
+        records = fetch_timeseries(index_id, current_start, end_date, api_key)
+
         if not records:
             break
 
         all_records.extend(records)
 
-        # Advance start to just after the last returned timestamp
-        last_ts = records[-1]["time_period_start"]
-        last_dt = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
-        current_start = last_dt + pd.Timedelta(minutes=5)
+        # Advance start to just after the last returned candle
+        last_ts = records[-1]["time_period_end"]
+        current_start = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
 
         if len(records) < PAGE_LIMIT:
-            break
+            break  # No more pages
 
-        if len(all_records) % 100_000 == 0:
+        if len(all_records) % 200_000 == 0:
             print(f"    {len(all_records):,} records...")
 
     if not all_records:
-        print(f"    No data returned for {symbol_id}")
+        print(f"    No data returned for {index_id}")
         return pd.DataFrame()
 
     df = pd.DataFrame(all_records)
-
     df["timestamp"] = pd.to_datetime(df["time_period_start"], utc=True)
     df = df.rename(columns={
-        "price_open": "open",
-        "price_high": "high",
-        "price_low": "low",
-        "price_close": "close",
-        "volume_traded": "volume",
-        "trades_count": "trades",
+        "value_open":  "open",
+        "value_high":  "high",
+        "value_low":   "low",
+        "value_close": "close",
+        "value_count": "tick_count",
     })
-    df["symbol_id"] = symbol_id
+    df["index_id"] = index_id
 
-    cols = ["timestamp", "symbol_id", "open", "high", "low", "close", "volume", "trades"]
+    cols = ["timestamp", "index_id", "open", "high", "low", "close", "tick_count"]
     available = [c for c in cols if c in df.columns]
     df = df[available].sort_values("timestamp").reset_index(drop=True)
 
-    print(f"    {symbol_id}: {len(df):,} records ({df['timestamp'].min()} → {df['timestamp'].max()})")
+    print(f"    {index_id}: {len(df):,} records ({df['timestamp'].min()} → {df['timestamp'].max()})")
     return df
 
 
@@ -137,7 +143,7 @@ def collect_coin(
     end_date: datetime = None,
     api_key: str = None,
 ) -> dict[str, pd.DataFrame]:
-    """Collect all CoinAPI symbols for a stablecoin. Returns {symbol_id: DataFrame}."""
+    """Collect all CoinAPI index symbols for a stablecoin. Returns {index_id: DataFrame}."""
     config = STABLECOINS.get(coin_key)
     if not config:
         raise ValueError(f"Unknown coin: {coin_key}")
@@ -154,23 +160,22 @@ def collect_coin(
         start_date = datetime.fromisoformat(config["start_date"]).replace(tzinfo=timezone.utc)
 
     results = {}
-    for symbol_id in symbols:
-        df = collect_symbol(symbol_id, start_date=start_date, end_date=end_date, api_key=api_key)
+    for index_id in symbols:
+        df = collect_index(index_id, start_date=start_date, end_date=end_date, api_key=api_key)
         if not df.empty:
-            results[symbol_id] = df
+            results[index_id] = df
 
     return results
 
 
 def save(data: dict[str, pd.DataFrame], coin_key: str) -> list[Path]:
-    """Save each symbol as Parquet under data/raw/coinapi/."""
+    """Save each index as Parquet under data/raw/coinapi/."""
     out_dir = RAW_DIR / "coinapi"
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = []
 
-    for symbol_id, df in data.items():
-        # e.g. KRAKEN_SPOT_USDT_USD -> kraken_spot_usdt_usd
-        filename = symbol_id.lower().replace("/", "_")
+    for index_id, df in data.items():
+        filename = index_id.lower()
         path = out_dir / f"{coin_key}_{filename}.parquet"
         df.to_parquet(path, index=False)
         print(f"  Saved {path} ({len(df):,} rows)")
