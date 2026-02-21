@@ -6,7 +6,7 @@ Usage:
     python src/data/collect_all.py all
     python src/data/collect_all.py usdt --start 2020-01-01
     python src/data/collect_all.py all --no-coinapi   # skip CoinAPI if key not ready
-    python src/data/collect_all.py all --no-daily     # skip FRED/market/defillama
+    python src/data/collect_all.py all --no-daily     # skip FRED/market
 """
 
 import argparse
@@ -19,7 +19,6 @@ from config.settings import STABLECOINS
 
 import src.data.collect_binance as binance
 import src.data.collect_coinapi as coinapi
-import src.data.collect_defillama as defillama
 import src.data.collect_fred as fred
 import src.data.collect_market as market
 
@@ -57,12 +56,6 @@ def run(
 
     # --- Daily sources (market-wide, collected once) ---
     if not skip_daily:
-        print("\n\n[DefiLlama — per coin]")
-        for coin in coin_keys:
-            df = defillama.collect_coin(coin)
-            if not df.empty:
-                defillama.save(df, coin)
-
         print("\n[FRED — macro]")
         try:
             df = fred.collect_all()
@@ -83,7 +76,7 @@ def main():
     parser.add_argument("--start", default=None, help="Override start date YYYY-MM-DD")
     parser.add_argument("--end", default=None, help="Override end date YYYY-MM-DD")
     parser.add_argument("--no-coinapi", action="store_true", help="Skip CoinAPI collection")
-    parser.add_argument("--no-daily", action="store_true", help="Skip FRED/market/defillama")
+    parser.add_argument("--no-daily", action="store_true", help="Skip FRED/market")
     args = parser.parse_args()
 
     coin_keys = list(STABLECOINS.keys()) if args.coin == "all" else [args.coin]

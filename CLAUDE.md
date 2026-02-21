@@ -24,7 +24,6 @@ python src/data/collect_all.py all --no-daily     # skip FRED/market/defillama
 # Collect individual sources
 python src/data/collect_binance.py [coin|all]     # free, 5m OHLCV
 python src/data/collect_coinapi.py [coin|all]     # paid, fiat pair OHLCV
-python src/data/collect_defillama.py [coin|all]   # daily supply
 python src/data/collect_fred.py                   # daily macro (FRED_API_KEY)
 python src/data/collect_market.py                 # daily BTC/ETH/Fear&Greed
 
@@ -42,7 +41,6 @@ pytest tests/
 - **CoinAPICollector** (`collect_coinapi.py`) — paid, fiat pairs (USDTUSD, USDCUSD, DAIUSD), full history
 
 ### Daily sources (forward-filled to 5m in merge)
-- **DefiLlamaCollector** (`collect_defillama.py`) — circulating supply
 - **FREDCollector** (`collect_fred.py`) — DXY, VIX, T10Y, Fed Funds
 - **MarketCollector** (`collect_market.py`) — BTC/ETH prices, Fear & Greed
 

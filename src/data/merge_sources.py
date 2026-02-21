@@ -4,7 +4,7 @@ Merge all raw sources into per-coin 5-minute Parquet files.
 Strategy:
   - Base index: 5-minute UTC timestamps spanning each coin's date range
   - 5m sources (Binance, CoinAPI): joined directly on timestamp
-  - Daily sources (DefiLlama, FRED, market): forward-filled into 5m index
+  - Daily sources (FRED, market): forward-filled into 5m index
 
 Output: data/processed/{coin}_5m.parquet
 
@@ -79,16 +79,6 @@ def load_coinapi(coin_key: str) -> pd.DataFrame:
     return pd.concat(dfs, axis=1).sort_index()
 
 
-def load_defillama(coin_key: str) -> pd.DataFrame:
-    path = RAW_DIR / "defillama" / f"{coin_key}_supply.parquet"
-    if not path.exists():
-        return pd.DataFrame()
-    df = pd.read_parquet(path)
-    df["date"] = pd.to_datetime(df["date"], utc=True)
-    df = df.drop(columns=["coin"], errors="ignore")
-    return df.set_index("date").sort_index()
-
-
 def load_fred() -> pd.DataFrame:
     path = RAW_DIR / "fred" / "macro.parquet"
     if not path.exists():
@@ -138,7 +128,6 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
     print(f"  Loading and forward-filling daily sources...")
 
     for name, daily_df in [
-        ("supply", load_defillama(coin_key)),
         ("macro", load_fred()),
         ("market", load_market()),
     ]:
