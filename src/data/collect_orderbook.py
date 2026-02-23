@@ -41,8 +41,9 @@ except ImportError:
 import requests
 
 BASE_URL = "https://rest.coinapi.io/v1"
-PAGE_LIMIT = 100_000
-RATE_LIMIT_DELAY = 0.5
+PAGE_LIMIT = 10_000        # Safety cap per request
+CHUNK_HOURS = 1            # Request 1 hour at a time to keep response size manageable
+RATE_LIMIT_DELAY = 0.3
 
 # Depth thresholds for OBI calculation (% from mid price)
 OBI_LEVELS = [0.01, 0.02]
@@ -73,7 +74,7 @@ def fetch_orderbook_history(
         "time_end": time_end.strftime("%Y-%m-%dT%H:%M:%S"),
         "limit": limit,
     }
-    response = requests.get(url, headers=headers, params=params, timeout=60)
+    response = requests.get(url, headers=headers, params=params, timeout=120)
     response.raise_for_status()
     time.sleep(RATE_LIMIT_DELAY)
     return response.json()
@@ -169,30 +170,31 @@ def collect_symbol(
     if end_date is None:
         end_date = datetime.now(timezone.utc)
 
+    from datetime import timedelta
+
     all_rows = []
     current_start = start_date
+    total_snaps = 0
 
     print(f"  Collecting order book: {symbol_id}...")
 
     while current_start < end_date:
-        snapshots = fetch_orderbook_history(symbol_id, current_start, end_date, api_key)
-        if not snapshots:
-            break
+        # Chunk into small time windows to keep response size manageable
+        chunk_end = min(current_start + timedelta(hours=CHUNK_HOURS), end_date)
 
-        for snap in snapshots:
-            row = process_snapshot(snap)
-            if row:
-                all_rows.append(row)
+        snapshots = fetch_orderbook_history(symbol_id, current_start, chunk_end, api_key)
 
-        last_ts = snapshots[-1].get("time_exchange") or snapshots[-1].get("time_coinapi")
-        current_start = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
-        current_start = current_start.replace(microsecond=0) + pd.Timedelta(seconds=1)
+        if snapshots:
+            for snap in snapshots:
+                row = process_snapshot(snap)
+                if row:
+                    all_rows.append(row)
+            total_snaps += len(snapshots)
 
-        if len(snapshots) < PAGE_LIMIT:
-            break
+        current_start = chunk_end
 
-        if len(all_rows) % 100_000 == 0:
-            print(f"    {len(all_rows):,} snapshots processed...")
+        if total_snaps > 0 and total_snaps % 50_000 == 0:
+            print(f"    {total_snaps:,} snapshots processed...")
 
     if not all_rows:
         print(f"    No data for {symbol_id}")

@@ -23,7 +23,8 @@ STABLECOINS = {
         "peg": 1.0,
         "type": "fiat-backed",
         "status": "active",
-        "start_date": "2015-01-01",   # USDT launched Oct 2014
+        "start_date": "2015-01-01",         # USDT launched Oct 2014
+        "coinapi_start_date": "2017-06-01", # IDX_REFRATE_VWAP_USDT data starts ~Jun 2017
         "end_date": None,
         "coingecko_id": "tether",
         "ethereum_contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
@@ -42,7 +43,7 @@ STABLECOINS = {
         "ethereum_contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "binance_pairs": ["BTCUSDC", "ETHUSDC", "USDCUSDT"],
         "coinapi_symbols": ["IDX_REFRATE_VWAP_USDC"],
-        "orderbook_symbol": "COINBASE_SPOT_USDC_USD",  # Coinbase issues USDC — deepest book
+        "orderbook_symbol": "KRAKEN_SPOT_USDC_USD",
     },
     "dai": {
         "name": "Dai",

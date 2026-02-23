@@ -108,9 +108,6 @@ def collect_index(
         last_ts = records[-1]["time_period_end"]
         current_start = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
 
-        if len(records) < PAGE_LIMIT:
-            break  # No more pages
-
         if len(all_records) % 200_000 == 0:
             print(f"    {len(all_records):,} records...")
 
@@ -157,7 +154,8 @@ def collect_coin(
         api_key = _get_api_key()
 
     if start_date is None:
-        start_date = datetime.fromisoformat(config["start_date"]).replace(tzinfo=timezone.utc)
+        date_str = config.get("coinapi_start_date") or config["start_date"]
+        start_date = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
 
     results = {}
     for index_id in symbols:

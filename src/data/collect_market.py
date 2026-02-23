@@ -50,24 +50,44 @@ def get_fear_greed(limit: int = 4000) -> pd.DataFrame:
     return df.sort_values("date").reset_index(drop=True)
 
 
+def collect_fear_greed() -> pd.DataFrame:
+    """Collect Fear & Greed index only (no API key required)."""
+    print("  Collecting Fear & Greed index...")
+    fg = get_fear_greed()
+    start = pd.Timestamp(GLOBAL_START_DATE, tz="UTC")
+    fg = fg[fg["date"] >= start].reset_index(drop=True)
+    print(f"  Fear & Greed: {len(fg)} daily records ({fg['date'].min().date()} → {fg['date'].max().date()})")
+    return fg
+
+
 def collect_all() -> pd.DataFrame:
     """
     Returns daily DataFrame with columns:
         date, btc_price, btc_volume, eth_price, eth_volume, fear_greed
+
+    Requires COINGECKO_API_KEY for BTC/ETH prices. Fear & Greed is always
+    collected (no key needed). If no CoinGecko key is available, use
+    collect_fear_greed() directly — BTC/ETH prices are also covered by the
+    Binance collector at 5m resolution.
     """
+    import os
+    api_key = os.getenv("COINGECKO_API_KEY")
+    if not api_key or api_key.startswith("your_"):
+        print("  No COINGECKO_API_KEY — collecting Fear & Greed only.")
+        print("  (BTC/ETH prices will come from the Binance collector.)")
+        return collect_fear_greed()
+
     print("  Collecting BTC prices...")
     btc = get_coingecko_prices("bitcoin")
 
     print("  Collecting ETH prices...")
     eth = get_coingecko_prices("ethereum")
 
-    print("  Collecting Fear & Greed index...")
-    fg = get_fear_greed()
+    fg = collect_fear_greed()
 
     merged = btc.merge(eth, on="date", how="outer").merge(fg, on="date", how="left")
     merged = merged.sort_values("date").reset_index(drop=True)
 
-    # Filter to project start date
     start = pd.Timestamp(GLOBAL_START_DATE, tz="UTC")
     merged = merged[merged["date"] >= start].reset_index(drop=True)
 
