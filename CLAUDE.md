@@ -26,6 +26,8 @@ python src/data/collect_binance.py [coin|all]     # free, 5m OHLCV
 python src/data/collect_coinapi.py [coin|all]     # paid, fiat pair OHLCV
 python src/data/collect_fred.py                   # daily macro (FRED_API_KEY)
 python src/data/collect_market.py                 # daily BTC/ETH/Fear&Greed
+python src/data/collect_onchain.py [coin|all]     # Ethereum mint/burn + USDT treasury flows (ETHERSCAN_API_KEY)
+python src/data/collect_tron.py                   # USDT TRON treasury flows (TRONGRID_API_KEY optional)
 
 # Merge to 5m Parquet
 python src/data/merge_sources.py [coin|all]
@@ -37,8 +39,10 @@ pytest tests/
 ## Architecture
 
 ### Native 5-minute sources
-- **BinanceCollector** (`collect_binance.py`) — free public API, BTCUSDT etc., full history from 2017
+- **BinanceCollector** (`collect_binance.py`) — free public API, BTCUSDT/ETHUSDT etc., full history from Aug 2017
 - **CoinAPICollector** (`collect_coinapi.py`) — paid, fiat pairs (USDTUSD, USDCUSD, DAIUSD), full history
+- **OnchainCollector** (`collect_onchain.py`) — Ethereum mint/burn events + USDT ETH treasury flows via Etherscan V2 API
+- **TronCollector** (`collect_tron.py`) — USDT treasury inflow/outflow on TRON via TronGrid API
 
 ### Daily sources (forward-filled to 5m in merge)
 - **FREDCollector** (`collect_fred.py`) — DXY, VIX, T10Y, Fed Funds
@@ -57,6 +61,8 @@ All data stored as **Parquet** (not CSV). Raw files in `data/raw/{source}/`.
 Set in `.env` file:
 - `COINAPI_KEY` — required for fiat pair data (coinapi.io)
 - `FRED_API_KEY` — required for macro data
+- `ETHERSCAN_API_KEY` — required for on-chain mint/burn events (Etherscan V2 API)
+- `TRONGRID_API_KEY` — optional for TRON treasury flows; free tier allows ~10 QPS without key
 - `COINGECKO_API_KEY` — optional (higher rate limits)
 
 ## Key Design Decisions
@@ -67,3 +73,32 @@ Set in `.env` file:
   provide real depeg examples; their `end_date` is set in config
 - **Parquet throughout** — 1.6M+ rows per coin makes CSV impractical
 - **Binance is free for 5m** — only CoinAPI is paid (needed for direct USD fiat pairs)
+- **BTC/ETH from Binance, not CoinAPI** — for market indicator features, Binance is free and
+  sufficiently accurate; CoinAPI VWAP precision only matters for stablecoin peg measurement
+
+## On-chain Mint/Burn Mechanics
+
+### USDT (Tether)
+- **Minting**: Institutional clients wire USD to Tether off-chain; Tether calls `issue()` in
+  large infrequent batches (~230 events total on Ethereum over 7 years, some up to $1B+)
+- **Redemption**: Entirely off-chain — institutions send USDT to Tether's treasury wallet,
+  receive a USD wire, and the tokens sit in treasury to be re-issued to the next customer.
+  The `redeem()` function exists in the contract but Tether never calls it on Ethereum.
+  **No Redeem events exist on-chain.**
+- **Burns**: Only via `DestroyedBlackFunds` — tokens seized from OFAC-sanctioned wallets
+  (1,175 events, more than mints). This is the only true on-chain supply destruction.
+- **Treasury tracking (ETH)**: Institutions return USDT to `0x5754284f...007b949` (Tether Treasury
+  on Ethereum) for off-chain USD redemption. These Transfer events are now collected as
+  `treasury_inflow` (redemption pressure) and `treasury_outflow` (re-issuance) in the ETH collector.
+- **Treasury tracking (TRON)**: TRON hosts >50% of USDT supply and is where Tether actively
+  operates the mint/burn cycle. Three known treasury wallets are tracked via TronGrid API
+  (`collect_tron.py`). Inter-treasury transfers are excluded to avoid double-counting.
+- **Leading indicator hypothesis**: Sophisticated institutions redeem at par directly with Tether
+  *before* the market depeg; treasury inflow spikes on both chains may precede open-market
+  peg breaks by minutes to hours.
+
+### USDC (Circle)
+- **Minting**: Circle calls `Mint()` on-chain for every issuance — high frequency, many events
+- **Redemption**: Circle calls `Burn()` on-chain for every redemption — clean net flow signal
+- **Net flow**: `mint_volume - burn_volume` is a reliable indicator of institutional demand/stress
+- **Implication**: USDC provides a much cleaner on-chain supply signal than USDT
