@@ -28,6 +28,7 @@ python src/data/collect_fred.py                   # daily macro (FRED_API_KEY)
 python src/data/collect_market.py                 # daily BTC/ETH/Fear&Greed
 python src/data/collect_onchain.py [coin|all]     # Ethereum mint/burn + USDT treasury flows (ETHERSCAN_API_KEY)
 python src/data/collect_tron.py                   # USDT TRON treasury flows (TRONGRID_API_KEY optional)
+python src/data/collect_curve.py [pool|all]       # Curve pool swap events (ETHERSCAN_API_KEY)
 
 # Merge to 5m Parquet
 python src/data/merge_sources.py [coin|all]
@@ -43,6 +44,7 @@ pytest tests/
 - **CoinAPICollector** (`collect_coinapi.py`) — paid, fiat pairs (USDTUSD, USDCUSD, DAIUSD), full history
 - **OnchainCollector** (`collect_onchain.py`) — Ethereum mint/burn events + USDT ETH treasury flows via Etherscan V2 API
 - **TronCollector** (`collect_tron.py`) — USDT treasury inflow/outflow on TRON via TronGrid API
+- **CurveCollector** (`collect_curve.py`) — TokenExchange events on Curve 3pool, USDe/USDC, and RLUSD/USDC pools via Etherscan V2 API
 
 ### Daily sources (forward-filled to 5m in merge)
 - **FREDCollector** (`collect_fred.py`) — DXY, VIX, T10Y, Fed Funds
@@ -96,6 +98,27 @@ Set in `.env` file:
 - **Leading indicator hypothesis**: Sophisticated institutions redeem at par directly with Tether
   *before* the market depeg; treasury inflow spikes on both chains may precede open-market
   peg breaks by minutes to hours.
+
+## Curve Pool Swap Mechanics
+
+`collect_curve.py` tracks `TokenExchange` events on three pools:
+
+| Pool         | Address                                      | Tokens                | Deployed |
+|--------------|----------------------------------------------|-----------------------|----------|
+| 3pool        | `0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7` | DAI / USDC / USDT     | Sep 2020 |
+| usde_usdc    | `0x02950460E2b9529D0E00284A5fA2D7Bdf3Fa4d72` | USDe / USDC           | Nov 2023 |
+| rlusd_usdc   | `0xd001ae433f254283fece51d4acce8c53263aa186` | RLUSD / USDC          | Dec 2024 |
+
+**Signal rationale**: When `usdt_net_sell_volume_usd > 0` in the 3pool (USDT is being sold for
+DAI or USDC), sophisticated traders are exiting USDT on-chain — a leading indicator of depeg
+stress that may precede open-market price movements.
+
+**topic0** (keccak256 of `TokenExchange(address,int128,uint256,int128,uint256)`):
+`0x8b3e96f2b889fa771c53c981b40daf005f63f637f1869f707052d15a3dd97140`
+(All Curve pool types — classic and NG — emit the same signature; verified on-chain.)
+
+**Output per pool**: `data/raw/curve/{pool}_5m.parquet` with columns
+`{token}_sold_volume_usd`, `{token}_bought_volume_usd`, `{token}_net_sell_volume_usd` for each token.
 
 ### USDC (Circle)
 - **Minting**: Circle calls `Mint()` on-chain for every issuance — high frequency, many events
