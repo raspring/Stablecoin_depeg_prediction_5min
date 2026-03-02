@@ -336,7 +336,7 @@ def parse_logs(logs: list, event_type: str, decimals: int, data_slice: str) -> p
             "timestamp":    datetime.fromtimestamp(int(log["timeStamp"], 16), tz=timezone.utc),
             "block_number": int(log["blockNumber"], 16),
             "tx_hash":      log["transactionHash"],
-            "log_index":    int(log["logIndex"], 16),
+            "log_index":    int(log["logIndex"], 16) if len(log["logIndex"]) > 2 else 0,
             "event_type":   event_type,
             "amount_usd":   amount_raw / (10 ** decimals),
         })
