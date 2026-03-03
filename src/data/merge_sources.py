@@ -220,6 +220,17 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
         result = result.join(daily_reindexed, how="left")
         print(f"    {name}: joined ({len(daily_df)} daily rows → forward-filled)")
 
+    # Unified institutional flow signal (comparable across all coins)
+    # USDT: ETH treasury + TRON treasury inflow/outflow (mint/burn is sparse/OFAC-only on ETH)
+    # Others: on-chain mint/burn net flow (clean supply signal)
+    # Note: sign conventions differ — USDT positive = redemption pressure; others positive = demand
+    if coin_key == "usdt":
+        eth = result["treasury_net_flow_usd"].fillna(0) if "treasury_net_flow_usd" in result.columns else 0
+        tron = result["tron_treasury_net_flow_usd"].fillna(0) if "tron_treasury_net_flow_usd" in result.columns else 0
+        result["total_net_flow_usd"] = eth + tron
+    elif "net_flow_usd" in result.columns:
+        result["total_net_flow_usd"] = result["net_flow_usd"].fillna(0)
+
     # Add coin metadata
     result["coin"] = coin_key
     result["peg"] = config["peg"]
