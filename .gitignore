@@ -1,7 +1,7 @@
-# Data (too large for git)
-data/raw/
-data/processed/
+# Data — parquet tracked via Git LFS (see .gitattributes)
+data/raw/**/*checkpoint*.parquet
 data/external/
+data/csv/
 
 # Environment
 .env
