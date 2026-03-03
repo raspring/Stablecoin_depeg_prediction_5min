@@ -22,6 +22,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from config.settings import RAW_DIR, PROCESSED_DIR, STABLECOINS
 
+# Global data cutoff — trim all coins to this date regardless of source coverage
+GLOBAL_END_DATE = pd.Timestamp("2026-02-28 23:55:00", tz="UTC")
+
 
 def build_5m_index(start: pd.Timestamp, end: pd.Timestamp) -> pd.DatetimeIndex:
     """Create a UTC 5-minute index from start to end."""
@@ -106,15 +109,69 @@ def load_market() -> pd.DataFrame:
     return df.set_index("date").sort_index()
 
 
+def load_onchain(coin_key: str) -> pd.DataFrame:
+    """Load 5-min on-chain ETH events (mint/burn + USDT treasury flows)."""
+    path = RAW_DIR / "onchain" / f"{coin_key}_eth_5m.parquet"
+    if not path.exists():
+        return pd.DataFrame()
+    df = pd.read_parquet(path)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return df.set_index("timestamp").sort_index()
+
+
+def load_tron(coin_key: str) -> pd.DataFrame:
+    """Load 5-min USDT TRON treasury flows (USDT only)."""
+    if coin_key != "usdt":
+        return pd.DataFrame()
+    path = RAW_DIR / "onchain" / "usdt_tron_5m.parquet"
+    if not path.exists():
+        return pd.DataFrame()
+    df = pd.read_parquet(path)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    # Prefix to distinguish from ETH treasury columns
+    df = df.rename(columns={c: f"tron_{c}" for c in df.columns if c != "timestamp"})
+    return df.set_index("timestamp").sort_index()
+
+
+# Curve pool → coins it covers (for routing per-coin joins)
+_CURVE_POOL_COINS = {
+    "3pool":      ["usdt", "usdc", "dai"],
+    "usde_usdc":  ["usde"],
+    "rlusd_usdc": ["rlusd"],
+}
+
+
+def load_curve(coin_key: str) -> pd.DataFrame:
+    """Load 5-min Curve TokenExchange data for pools relevant to this coin."""
+    frames = []
+    for pool, coins in _CURVE_POOL_COINS.items():
+        if coin_key not in coins:
+            continue
+        path = RAW_DIR / "curve" / f"{pool}_5m.parquet"
+        if not path.exists():
+            continue
+        df = pd.read_parquet(path)
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        # Prefix all columns with pool name for clarity
+        df = df.rename(columns={c: f"curve_{pool}_{c}" for c in df.columns if c != "timestamp"})
+        frames.append(df.set_index("timestamp").sort_index())
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, axis=1).sort_index()
+
+
 def merge_coin(coin_key: str) -> pd.DataFrame:
     config = STABLECOINS[coin_key]
 
     print(f"  Loading 5m sources...")
-    binance_df = load_binance(coin_key)
-    coinapi_df = load_coinapi(coin_key)
+    binance_df  = load_binance(coin_key)
+    coinapi_df  = load_coinapi(coin_key)
+    onchain_df  = load_onchain(coin_key)
+    tron_df     = load_tron(coin_key)
+    curve_df    = load_curve(coin_key)
 
     # Determine date range from available 5m data
-    all_5m = [df for df in [binance_df, coinapi_df] if not df.empty]
+    all_5m = [df for df in [binance_df, coinapi_df, onchain_df, tron_df, curve_df] if not df.empty]
     if not all_5m:
         print(f"  No 5m data found for {coin_key}. Run collectors first.")
         return pd.DataFrame()
@@ -137,6 +194,15 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
     if not ob_df.empty:
         result = result.join(ob_df, how="left")
         print(f"    orderbook: joined ({len(ob_df):,} 5m rows)")
+
+    for name, df in [
+        ("onchain",  onchain_df),
+        ("tron",     tron_df),
+        ("curve",    curve_df),
+    ]:
+        if not df.empty:
+            result = result.join(df, how="left")
+            print(f"    {name}: joined ({len(df):,} 5m rows)")
 
     # Forward-fill daily sources
     print(f"  Loading and forward-filling daily sources...")
@@ -167,6 +233,9 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
     if config.get("end_date"):
         coin_end = pd.Timestamp(config["end_date"], tz="UTC")
         result = result[result.index <= coin_end]
+
+    # Apply global cutoff
+    result = result[result.index <= GLOBAL_END_DATE]
 
     result = result.sort_index()
     print(f"  Final shape: {result.shape} ({result.index.min()} → {result.index.max()})")
