@@ -220,6 +220,10 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
         result = result.join(daily_reindexed, how="left")
         print(f"    {name}: joined ({len(daily_df)} daily rows → forward-filled)")
 
+    # Date and time columns derived from the timestamp index
+    result["date"] = result.index.date
+    result["time"] = result.index.time
+
     # Unified institutional flow signal (comparable across all coins)
     # USDT: ETH treasury + TRON treasury inflow/outflow (mint/burn is sparse/OFAC-only on ETH)
     # Others: on-chain mint/burn net flow (clean supply signal)
