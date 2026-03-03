@@ -32,9 +32,11 @@ def build_5m_index(start: pd.Timestamp, end: pd.Timestamp) -> pd.DatetimeIndex:
 
 
 def load_binance(coin_key: str) -> pd.DataFrame:
-    """Load and aggregate all Binance pairs for a coin into a single DataFrame."""
+    """Load and aggregate all Binance pairs for a coin into a single DataFrame.
+    BTC/ETH market context pairs are excluded here — handled by load_btc_eth_5m instead."""
     binance_dir = RAW_DIR / "binance"
-    files = list(binance_dir.glob(f"{coin_key}_*.parquet"))
+    files = [f for f in binance_dir.glob(f"{coin_key}_*.parquet")
+             if not any(m in f.stem.upper() for m in ["BTCUSDT", "ETHUSDT"])]
     if not files:
         return pd.DataFrame()
 
@@ -208,12 +210,11 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
     if not coinapi_df.empty:
         result = result.join(coinapi_df, how="left")
 
-    # 5m BTC/ETH closes as shared market context (all coins except USDT, which already has full OHLCV)
-    if coin_key != "usdt":
-        btc_eth_df = load_btc_eth_5m()
-        if not btc_eth_df.empty:
-            result = result.join(btc_eth_df, how="left")
-            print(f"    btc/eth 5m: joined ({len(btc_eth_df):,} rows)")
+    # 5m BTC/ETH closes as shared market context for all coins
+    btc_eth_df = load_btc_eth_5m()
+    if not btc_eth_df.empty:
+        result = result.join(btc_eth_df, how="left")
+        print(f"    btc/eth 5m: joined ({len(btc_eth_df):,} rows)")
 
     ob_df = load_orderbook(coin_key)
     if not ob_df.empty:
