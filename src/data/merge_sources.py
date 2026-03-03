@@ -47,7 +47,7 @@ def load_binance(coin_key: str) -> pd.DataFrame:
         # Prefix columns with symbol to avoid collisions
         symbol = df["symbol"].iloc[0].lower() if "symbol" in df.columns else f.stem
         df = df.rename(columns={
-            col: f"{symbol}_{col}"
+            col: f"binance_{symbol}_{col}"
             for col in ["open", "high", "low", "close", "volume", "quote_volume",
                         "trades", "taker_buy_volume", "taker_buy_quote_volume",
                         "buy_ratio", "spread_proxy"]
@@ -70,15 +70,12 @@ def load_coinapi(coin_key: str) -> pd.DataFrame:
     for f in files:
         df = pd.read_parquet(f)
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-        symbol_id = df["symbol_id"].iloc[0].lower() if "symbol_id" in df.columns else f.stem
-        # Use a short prefix from the symbol (e.g. kraken_spot_usdt_usd -> kraken)
-        prefix = symbol_id.split("_")[0]
         df = df.rename(columns={
-            col: f"{prefix}_{col}"
-            for col in ["open", "high", "low", "close", "volume", "trades"]
+            col: f"coinapi_{col}"
+            for col in ["open", "high", "low", "close", "volume", "trades", "tick_count"]
             if col in df.columns
         })
-        df = df.drop(columns=["symbol_id"], errors="ignore")
+        df = df.drop(columns=["symbol_id", "index_id"], errors="ignore")
         dfs.append(df.set_index("timestamp"))
 
     return pd.concat(dfs, axis=1).sort_index()
@@ -173,7 +170,7 @@ def load_btc_eth_5m() -> pd.DataFrame:
             continue
         df = pd.read_parquet(path)
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-        df = df.rename(columns={"close": col_name})[["timestamp", col_name]]
+        df = df.rename(columns={"close": f"binance_{col_name}"})[["timestamp", f"binance_{col_name}"]]
         frames.append(df.set_index("timestamp"))
     if not frames:
         return pd.DataFrame()
