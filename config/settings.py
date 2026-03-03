@@ -23,7 +23,7 @@ STABLECOINS = {
         "peg": 1.0,
         "type": "fiat-backed",
         "status": "active",
-        "start_date": "2015-01-01",         # USDT launched Oct 2014
+        "start_date": "2017-08-17",         # CoinAPI VWAP data starts Aug 2017 (launched Oct 2014)
         "coinapi_start_date": "2017-06-01", # IDX_REFRATE_VWAP_USDT data starts ~Jun 2017
         "end_date": None,
         "coingecko_id": "tether",
@@ -37,7 +37,7 @@ STABLECOINS = {
         "peg": 1.0,
         "type": "fiat-backed",
         "status": "active",
-        "start_date": "2018-09-01",   # USDC launched Sep 2018
+        "start_date": "2018-10-16",   # CoinAPI VWAP data starts Oct 2018 (launched Sep 2018)
         "end_date": None,
         "coingecko_id": "usd-coin",
         "ethereum_contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -89,7 +89,7 @@ STABLECOINS = {
         "peg": 1.0,
         "type": "synthetic",
         "status": "active",
-        "start_date": "2024-02-01",   # USDe launched Feb 2024
+        "start_date": "2024-04-02",   # CoinAPI VWAP data starts Apr 2024 (launched Feb 2024)
         "end_date": None,
         "coingecko_id": "ethena-usde",
         "ethereum_contract": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
@@ -102,7 +102,7 @@ STABLECOINS = {
         "peg": 1.0,
         "type": "fiat-backed",
         "status": "active",
-        "start_date": "2024-12-01",   # RLUSD launched Dec 2024
+        "start_date": "2025-02-27",   # CoinAPI VWAP data starts Feb 2025 (launched Dec 2024)
         "end_date": None,
         "coingecko_id": "ripple-usd",
         "ethereum_contract": "0x8292Bb45bf1Ee4d14D77B5Ea4e2C33f63b0f33b7",  # Verify
