@@ -160,6 +160,24 @@ def load_curve(coin_key: str) -> pd.DataFrame:
     return pd.concat(frames, axis=1).sort_index()
 
 
+def load_btc_eth_5m() -> pd.DataFrame:
+    """Load 5m BTC and ETH closes from Binance as shared market context for all coins."""
+    binance_dir = RAW_DIR / "binance"
+    frames = []
+    for symbol_file, col_name in [("usdt_btcusdt.parquet", "btc_close"),
+                                   ("usdt_ethusdt.parquet", "eth_close")]:
+        path = binance_dir / symbol_file
+        if not path.exists():
+            continue
+        df = pd.read_parquet(path)
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df = df.rename(columns={"close": col_name})[["timestamp", col_name]]
+        frames.append(df.set_index("timestamp"))
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, axis=1).sort_index()
+
+
 def merge_coin(coin_key: str) -> pd.DataFrame:
     config = STABLECOINS[coin_key]
 
@@ -189,6 +207,13 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
         result = result.join(binance_df, how="left")
     if not coinapi_df.empty:
         result = result.join(coinapi_df, how="left")
+
+    # 5m BTC/ETH closes as shared market context (all coins except USDT, which already has full OHLCV)
+    if coin_key != "usdt":
+        btc_eth_df = load_btc_eth_5m()
+        if not btc_eth_df.empty:
+            result = result.join(btc_eth_df, how="left")
+            print(f"    btc/eth 5m: joined ({len(btc_eth_df):,} rows)")
 
     ob_df = load_orderbook(coin_key)
     if not ob_df.empty:
