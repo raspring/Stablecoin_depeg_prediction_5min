@@ -11,7 +11,8 @@ INTERVAL = "5m"
 INTERVAL_MINUTES = 5
 
 # Depeg threshold
-DEPEG_THRESHOLD = 0.005  # 0.5% from peg
+DEPEG_THRESHOLD = 0.005        # 0.5% from peg
+DEPEG_CONSECUTIVE_BARS = 3     # must breach threshold for 3 consecutive 5-min bars (15 min)
 
 # Global start date (per-coin dates override this)
 GLOBAL_START_DATE = "2015-01-01"

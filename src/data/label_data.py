@@ -28,7 +28,7 @@ import pandas as pd
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from config.settings import PROCESSED_DIR, STABLECOINS, DEPEG_THRESHOLD
+from config.settings import PROCESSED_DIR, STABLECOINS, DEPEG_THRESHOLD, DEPEG_CONSECUTIVE_BARS
 
 # Coins whose price can legitimately go far outside the normal stablecoin range
 _ALLOW_EXTREME_PRICES = {"ust"}
@@ -62,8 +62,14 @@ def label_coin(coin_key: str) -> pd.DataFrame:
     # Continuous deviation from $1.00 peg
     df["price_dev"] = (price - 1.0).astype("float64")
 
-    # Binary current-state label
-    df["depeg"] = (df["price_dev"].abs() > DEPEG_THRESHOLD).astype("Int8")
+    # Binary current-state label: threshold must be breached for DEPEG_CONSECUTIVE_BARS in a row
+    # rolling(n).min() == 1 only if all n bars are 1 — filters single-bar noise/artifacts
+    single_breach = (df["price_dev"].abs() > DEPEG_THRESHOLD)
+    df["depeg"] = (
+        single_breach.rolling(DEPEG_CONSECUTIVE_BARS, min_periods=DEPEG_CONSECUTIVE_BARS)
+        .min()
+        .astype("Int8")
+    )
     df.loc[price.isna(), "depeg"] = pd.NA
 
     # Forward-looking labels — rolling max over next N bars
