@@ -85,8 +85,8 @@ POOL_CONFIGS = {
         "deploy_block": 21_436_847,   # Dec 2024
         "topic0":       _TOPIC_TOKEN_EXCHANGE,
         "tokens": {
-            0: ("rlusd", 18),
-            1: ("usdc",   6),
+            0: ("usdc",   6),
+            1: ("rlusd", 18),
         },
     },
 }

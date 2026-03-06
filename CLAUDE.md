@@ -30,8 +30,10 @@ python src/data/collect_onchain.py [coin|all]     # Ethereum mint/burn + USDT tr
 python src/data/collect_tron.py                   # USDT TRON treasury flows (TRONGRID_API_KEY optional)
 python src/data/collect_curve.py [pool|all]       # Curve pool swap events (ETHERSCAN_API_KEY)
 
-# Merge to 5m Parquet
-python src/data/merge_sources.py [coin|all]
+# Build modeling-ready 5m Parquet (run in order)
+python src/data/merge_sources.py [coin|all]   # pure join → {coin}_5m_raw.parquet
+python src/data/clean_data.py [coin|all]      # zero-fill events, ffill daily → {coin}_5m.parquet
+python src/data/label_data.py [coin|all]      # add depeg labels → {coin}_5m.parquet (in-place)
 
 # Run tests
 pytest tests/

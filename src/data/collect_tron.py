@@ -54,6 +54,11 @@ USDT_DECIMALS = 6
 
 # Known Tether treasury wallets on TRON (labeled by Whale Alert / Arkham).
 # Add new addresses here as Tether rotates wallets.
+# Cap on raw token value — filters uint256 max sentinel values used by some
+# contracts to represent "unlimited" transfers. 1e18 raw = 1 trillion USDT (6 decimals),
+# far above the entire USDT supply (~140B). Anything above this is invalid.
+_MAX_RAW_AMOUNT = int(1e18)
+
 TREASURY_WALLETS = [
     "THPvaUhoh2Qn2y9THCZML3H815hhFhn5YC",   # ~2019–2021
     "TKHuVq1oKVruCGLvqVexFs6dawKv6fQgFs",   # ~2020–2022
@@ -147,6 +152,11 @@ def parse_records(raw: list[dict], wallet_address: str) -> pd.DataFrame:
         if from_addr in treasury_set and to_addr in treasury_set:
             continue
 
+        # Skip uint256 max sentinel values (contracts using "unlimited" amounts)
+        raw_amount = int(tx["value"])
+        if raw_amount > _MAX_RAW_AMOUNT:
+            continue
+
         is_inflow = (to_addr == wallet_address)
         rows.append({
             "timestamp":         datetime.fromtimestamp(
@@ -156,7 +166,7 @@ def parse_records(raw: list[dict], wallet_address: str) -> pd.DataFrame:
             "from_addr":          from_addr,
             "to_addr":            to_addr,
             "event_type":         "treasury_inflow" if is_inflow else "treasury_outflow",
-            "amount_usd":         int(tx["value"]) / (10 ** USDT_DECIMALS),
+            "amount_usd":         raw_amount / (10 ** USDT_DECIMALS),
             "wallet":             wallet_address,
         })
 

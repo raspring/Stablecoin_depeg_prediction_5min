@@ -80,7 +80,7 @@ def run(
         df = market.collect_all()
         market.save(df)
 
-    print("\n\nDone. Run merge_sources.py to build 5m Parquet files.")
+    print("\n\nDone. Next: merge_sources.py → clean_data.py → label_data.py")
 
 
 def main():

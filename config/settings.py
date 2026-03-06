@@ -64,7 +64,7 @@ STABLECOINS = {
         "peg": 1.0,
         "type": "fiat-backed",
         "status": "discontinued",     # Paxos stopped minting Mar 2023
-        "start_date": "2019-09-01",   # BUSD launched Sep 2019
+        "start_date": "2019-09-20",   # CoinAPI data starts Sep 20 (launched Sep 2019)
         "end_date": "2023-03-31",
         "coingecko_id": "binance-usd",
         "ethereum_contract": "0x4Fabb145d64652a948d72533023f6E7A623C7C53",
@@ -78,7 +78,7 @@ STABLECOINS = {
         "type": "algorithmic",
         "status": "failed",           # Collapsed May 2022
         "start_date": "2020-09-01",   # UST launched Sep 2020
-        "end_date": "2022-05-31",
+        "end_date": "2022-05-12",  # Cuts zombie tail; collapse event (May 7-12) retained
         "coingecko_id": "terrausd",
         "ethereum_contract": None,    # Terra-native; bridged via Wormhole but not native ERC-20
         "binance_pairs": ["USTUSDT", "USTBUSD"],
@@ -103,7 +103,7 @@ STABLECOINS = {
         "peg": 1.0,
         "type": "fiat-backed",
         "status": "active",
-        "start_date": "2025-02-27",   # CoinAPI VWAP data starts Feb 2025 (launched Dec 2024)
+        "start_date": "2025-04-01",   # CoinAPI coverage reaches 93%+ from Apr 2025 (launched Dec 2024)
         "end_date": None,
         "coingecko_id": "ripple-usd",
         "ethereum_contract": "0x8292Bb45bf1Ee4d14D77B5Ea4e2C33f63b0f33b7",  # Verify

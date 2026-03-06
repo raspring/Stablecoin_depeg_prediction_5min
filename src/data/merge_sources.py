@@ -1,12 +1,16 @@
 """
 Merge all raw sources into per-coin 5-minute Parquet files.
 
+This is a pure join — no cleaning, filling, or derived columns.
+Run clean_data.py afterwards to zero-fill event columns, forward-fill
+daily series, and compute derived features.
+
 Strategy:
   - Base index: 5-minute UTC timestamps spanning each coin's date range
-  - 5m sources (Binance, CoinAPI): joined directly on timestamp
-  - Daily sources (FRED, market): forward-filled into 5m index
+  - 5m sources (Binance, CoinAPI, on-chain, Curve): joined directly on timestamp
+  - Daily sources (FRED, market): reindexed to 5m (raw NaN where no prior value)
 
-Output: data/processed/{coin}_5m.parquet
+Output: data/processed/{coin}_5m_raw.parquet
 
 Usage:
     python src/data/merge_sources.py usdt
@@ -238,6 +242,9 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
             print(f"    {name}: not found, skipping")
             continue
 
+        # ffill within daily data first (monthly series like fedfunds have NaN on
+        # non-release days; reindex exact-matches those NaN rows rather than looking back)
+        daily_df = daily_df.ffill()
         # Reindex to 5m and forward-fill
         daily_reindexed = daily_df.reindex(result.index, method="ffill")
         result = result.join(daily_reindexed, how="left")
@@ -246,17 +253,6 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
     # Date and time columns derived from the timestamp index
     result["date"] = result.index.date
     result["time"] = result.index.time
-
-    # Unified institutional flow signal (comparable across all coins)
-    # USDT: ETH treasury + TRON treasury inflow/outflow (mint/burn is sparse/OFAC-only on ETH)
-    # Others: on-chain mint/burn net flow (clean supply signal)
-    # Note: sign conventions differ — USDT positive = redemption pressure; others positive = demand
-    if coin_key == "usdt":
-        eth = result["treasury_net_flow_usd"].fillna(0) if "treasury_net_flow_usd" in result.columns else 0
-        tron = result["tron_treasury_net_flow_usd"].fillna(0) if "tron_treasury_net_flow_usd" in result.columns else 0
-        result["total_net_flow_usd"] = eth + tron
-    elif "net_flow_usd" in result.columns:
-        result["total_net_flow_usd"] = result["net_flow_usd"].fillna(0)
 
     # Add coin metadata
     result["coin"] = coin_key
@@ -282,7 +278,7 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
 
 def save(df: pd.DataFrame, coin_key: str) -> Path:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    path = PROCESSED_DIR / f"{coin_key}_5m.parquet"
+    path = PROCESSED_DIR / f"{coin_key}_5m_raw.parquet"
     df.to_parquet(path)
     size_mb = path.stat().st_size / 1e6
     print(f"  Saved {path} ({len(df):,} rows, {size_mb:.1f} MB)")
