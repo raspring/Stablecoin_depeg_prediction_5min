@@ -46,7 +46,7 @@ from config.settings import RAW_DIR
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-XRPL_URL            = "https://xrplcluster.com"
+XRPL_URL            = "https://s2.ripple.com:51234"
 RIPPLE_EPOCH_OFFSET = 946_684_800          # Unix − Ripple epoch (seconds)
 
 RLUSD_ISSUER   = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"
