@@ -2,8 +2,17 @@
 Collect USDC mint/burn events on Solana via Helius enhanced API.
 
 USDC is Circle's primary stablecoin on Solana with $9.3B supply (17% of total USDC).
-Circle controls minting via a known mint authority address. Burn (redemption) events
-are captured via Helius TOKEN_BURN filter on the USDC mint address.
+USDT on Solana (Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB) is Wormhole-bridged
+from Ethereum/TRON, not natively issued — supply changes appear as bridge operations,
+not TOKEN_MINT events, so USDT Solana is not collected here.
+
+USDC Solana mechanics:
+  Mints: Circle's mint authority (BJE5MMbqXjVwjAF7oxwPYXnTXDyspzZyt4vwenNw5ruG)
+         issues large batches via TOKEN_MINT. ~969 events since Aug 2024.
+  Burns: Circle uses short-lived rotating addresses that receive USDC and burn it
+         (type="BURN" in Helius). The active burn addresses are listed in
+         USDC_BURN_ADDRESSES below. Burns are sparse (~18/day when active).
+         Historical burn addresses before Aug 2024 are not captured.
 
 USDC Solana mint : EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v  (6 decimals)
 Mint authority   : BJE5MMbqXjVwjAF7oxwPYXnTXDyspzZyt4vwenNw5ruG
@@ -23,9 +32,6 @@ Output:
 
 Usage:
   python src/data/collect_solana.py
-
-Note on burns: Solana USDC burns are sparse — Circle primarily redeems on Ethereum.
-Burn collection uses Helius TOKEN_BURN filter and may not capture all events.
 """
 
 import os
@@ -45,12 +51,19 @@ load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-HELIUS_BASE   = "https://api.helius.xyz/v0"
-USDC_MINT     = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+HELIUS_BASE    = "https://api.helius.xyz/v0"
+USDC_MINT      = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 USDC_AUTHORITY = "BJE5MMbqXjVwjAF7oxwPYXnTXDyspzZyt4vwenNw5ruG"
 
-# USDC launched on Solana ~Oct 2020
-USDC_SOL_START = datetime(2020, 10, 1, tzinfo=timezone.utc)
+# Known Circle burn addresses on Solana. Circle uses rotating short-lived addresses
+# that receive USDC from users and burn it (Helius type="BURN"). Add new addresses
+# here as they are discovered. Historical addresses before Aug 2024 are unknown.
+USDC_BURN_ADDRESSES = [
+    "41zCUJsKk6cMB94DDtm99qWmyMZfp4GkAhhuz4xTwePu",   # active Mar 2026
+]
+
+# USDC launched on Solana ~Oct 2020; but Helius only indexes back to ~Aug 2024
+USDC_SOL_START = datetime(2024, 8, 1, tzinfo=timezone.utc)
 
 PAGE_LIMIT  = 100    # Helius max per page
 RATE_DELAY  = 0.2   # seconds between calls
@@ -200,12 +213,15 @@ def collect_all(api_key: str) -> pd.DataFrame:
         event_type="mint", start_ts=start_ts
     )
 
-    # Collect burns from mint address
-    print("  Fetching burns (mint address)...")
-    burn_events = collect_source(
-        USDC_MINT, api_key, tx_type="TOKEN_BURN",
-        event_type="burn", start_ts=start_ts
-    )
+    # Collect burns from known Circle burn addresses (type="BURN" in Helius)
+    # Burns are indexed by burner address, not by the USDC mint address.
+    print("  Fetching burns (Circle burn addresses)...")
+    burn_events = []
+    for burn_addr in USDC_BURN_ADDRESSES:
+        burn_events.extend(collect_source(
+            burn_addr, api_key, tx_type="BURN",
+            event_type="burn", start_ts=start_ts
+        ))
 
     all_new = mint_events + burn_events
 
