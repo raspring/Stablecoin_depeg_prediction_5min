@@ -38,5 +38,4 @@ models/*.h5
 docs/
 
 # Slide-building scripts
-scripts/build_status_slides.py
-scripts/build_depeg_survey_slides.py
+scripts/build_*_slides.py
