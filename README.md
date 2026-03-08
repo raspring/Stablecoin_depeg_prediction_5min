@@ -60,7 +60,9 @@ See `data/README.md` for full column reference and pipeline documentation.
 │   └── settings.py          # Coin configs, date ranges, API settings
 ├── data/
 │   ├── README.md            # Full column reference + pipeline docs
-│   ├── processed/           # Modeling-ready Parquet files ({coin}_5m.parquet)
+│   ├── processed/
+│   │   ├── merged/          # merge_sources.py output ({coin}_5m_raw.parquet)
+│   │   └── cleansed/        # clean + labeled, modeling-ready ({coin}_5m.parquet)
 │   └── raw/                 # Raw source files organized by provider
 │       ├── binance/
 │       ├── coinapi/
@@ -152,7 +154,7 @@ python src/data/clean_data.py all
 python src/data/label_data.py all
 ```
 
-Output: `data/processed/{coin}_5m.parquet` — one file per coin, modeling-ready.
+Output: `data/processed/cleansed/{coin}_5m.parquet` — one file per coin, modeling-ready.
 
 ---
 

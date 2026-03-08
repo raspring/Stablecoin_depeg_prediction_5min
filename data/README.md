@@ -3,7 +3,8 @@
 ## Overview
 
 5-minute resolution dataset covering 7 stablecoins from their respective launch dates through
-February 28, 2026. Each coin has a single modeling-ready Parquet file in `processed/`.
+February 28, 2026. Processed files are split into two subfolders: `processed/merged/` (raw joins)
+and `processed/cleansed/` (clean + labeled, modeling-ready).
 
 ## Files
 
@@ -19,10 +20,10 @@ February 28, 2026. Each coin has a single modeling-ready Parquet file in `proces
 | `usde_5m.parquet` | Ethena USDe (USDe) | 200,928 | 40 | 2024-04-02 → 2026-02-28 | |
 | `rlusd_5m.parquet`| Ripple USD (RLUSD) | 96,192 | 40 | 2025-04-01 → 2026-02-28 | |
 
-CSV copies are in `csv/processed/` for convenience.
+CSV copies mirror the same structure in `csv/processed/merged/` and `csv/processed/cleansed/`.
 
-`{coin}_5m_raw.parquet` files are the pre-cleaning joins (before zero-fill, forward-fill, and
-anomaly patching). Use `{coin}_5m.parquet` for modeling.
+`processed/merged/{coin}_5m_raw.parquet` — all sources joined, no cleaning applied (NaNs intact).
+`processed/cleansed/{coin}_5m.parquet` — zero-filled, forward-filled, anomaly-patched, and labeled. Use these for modeling.
 
 ---
 
