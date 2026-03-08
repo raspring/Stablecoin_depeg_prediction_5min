@@ -10,7 +10,7 @@ Strategy:
   - 5m sources (Binance, CoinAPI, on-chain, Curve): joined directly on timestamp
   - Daily sources (FRED, market): reindexed to 5m (raw NaN where no prior value)
 
-Output: data/processed/{coin}_5m_raw.parquet
+Output: data/processed/merged/{coin}_5m_raw.parquet
 
 Usage:
     python src/data/merge_sources.py usdt
@@ -24,7 +24,7 @@ import pandas as pd
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from config.settings import RAW_DIR, PROCESSED_DIR, STABLECOINS
+from config.settings import RAW_DIR, MERGED_DIR, STABLECOINS
 
 # Global data cutoff — trim all coins to this date regardless of source coverage
 GLOBAL_END_DATE = pd.Timestamp("2026-02-28 23:55:00", tz="UTC")
@@ -277,8 +277,8 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
 
 
 def save(df: pd.DataFrame, coin_key: str) -> Path:
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    path = PROCESSED_DIR / f"{coin_key}_5m_raw.parquet"
+    MERGED_DIR.mkdir(parents=True, exist_ok=True)
+    path = MERGED_DIR / f"{coin_key}_5m_raw.parquet"
     df.to_parquet(path)
     size_mb = path.stat().st_size / 1e6
     print(f"  Saved {path} ({len(df):,} rows, {size_mb:.1f} MB)")

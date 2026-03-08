@@ -28,7 +28,7 @@ import pandas as pd
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from config.settings import PROCESSED_DIR, STABLECOINS, DEPEG_THRESHOLD, DEPEG_CONSECUTIVE_BARS
+from config.settings import CLEANSED_DIR, STABLECOINS, DEPEG_THRESHOLD, DEPEG_CONSECUTIVE_BARS
 
 # Coins whose price can legitimately go far outside the normal stablecoin range
 _ALLOW_EXTREME_PRICES = {"ust"}
@@ -46,7 +46,7 @@ _HORIZONS = [
 
 
 def label_coin(coin_key: str) -> pd.DataFrame:
-    path = PROCESSED_DIR / f"{coin_key}_5m.parquet"
+    path = CLEANSED_DIR / f"{coin_key}_5m.parquet"
     df = pd.read_parquet(path)
 
     price = df["coinapi_close"].copy()
@@ -91,7 +91,7 @@ def label_coin(coin_key: str) -> pd.DataFrame:
 
 
 def save(df: pd.DataFrame, coin_key: str) -> None:
-    path = PROCESSED_DIR / f"{coin_key}_5m.parquet"
+    path = CLEANSED_DIR / f"{coin_key}_5m.parquet"
     df.to_parquet(path)
     print(f"  Saved {path}")
 

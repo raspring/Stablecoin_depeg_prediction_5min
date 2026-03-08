@@ -1,8 +1,8 @@
 """
 Clean merged 5m raw data for modeling.
 
-Reads:  data/processed/{coin}_5m_raw.parquet
-Writes: data/processed/{coin}_5m.parquet
+Reads:  data/processed/merged/{coin}_5m_raw.parquet
+Writes: data/processed/cleansed/{coin}_5m.parquet
 
 Cleaning steps:
   1. Zero-fill event-based columns — on-chain mint/burn, treasury flows, Curve swaps.
@@ -28,7 +28,7 @@ import pandas as pd
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from config.settings import PROCESSED_DIR, STABLECOINS
+from config.settings import MERGED_DIR, CLEANSED_DIR, STABLECOINS
 
 # ── Column groups ────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ def _is_event_col(col: str) -> bool:
 
 
 def clean_coin(coin_key: str) -> pd.DataFrame:
-    raw_path = PROCESSED_DIR / f"{coin_key}_5m_raw.parquet"
+    raw_path = MERGED_DIR / f"{coin_key}_5m_raw.parquet"
     if not raw_path.exists():
         print(f"  Raw file not found: {raw_path}. Run merge_sources.py first.")
         return pd.DataFrame()
@@ -135,7 +135,8 @@ def clean_coin(coin_key: str) -> pd.DataFrame:
 
 
 def save(df: pd.DataFrame, coin_key: str) -> None:
-    path = PROCESSED_DIR / f"{coin_key}_5m.parquet"
+    CLEANSED_DIR.mkdir(parents=True, exist_ok=True)
+    path = CLEANSED_DIR / f"{coin_key}_5m.parquet"
     df.to_parquet(path)
     size_mb = path.stat().st_size / 1e6
     print(f"  Saved {path} ({len(df):,} rows, {size_mb:.1f} MB)")
