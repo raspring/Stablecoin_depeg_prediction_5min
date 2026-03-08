@@ -258,18 +258,78 @@ to compute forward labels).
 ## Data Pipeline
 
 ```
-src/data/merge_sources.py   →  {coin}_5m_raw.parquet   (pure join, no cleaning)
-src/data/clean_data.py      →  {coin}_5m.parquet        (zero-fill, ffill, anomaly patch)
-src/data/label_data.py      →  {coin}_5m.parquet        (adds depeg labels in-place)
+Collection scripts      →  data/raw/{source}/          (raw + 5m aggregates per source)
+merge_sources.py        →  {coin}_5m_raw.parquet        (pure join, no cleaning)
+clean_data.py           →  {coin}_5m.parquet            (zero-fill, ffill, anomaly patch)
+label_data.py           →  {coin}_5m.parquet            (adds depeg labels in-place)
 ```
 
-### Cleaning rules (`clean_data.py`)
+### Stage 1 — Collection (`src/data/collect_*.py`)
+
+Each collector fetches from its API, applies only unavoidable transformations, and writes to
+`data/raw/`. No statistical preprocessing, outlier removal, or filling at this stage.
+
+**Transformations applied in all collectors:**
+- **Unit conversion** — raw token amounts divided by decimals (÷10⁶ for USDT/USDC, ÷10¹⁸ for DAI/USDe/RLUSD/BUSD)
+- **Timestamp normalisation** — source-specific epochs and formats converted to UTC datetime
+- **Deduplication** — on `tx_hash` (+ `event_type` where one tx can have both mint and burn)
+- **5-min aggregation** — event-level data (individual mint/burn/swap) binned to 5-min bars with count + sum; raw event files are saved alongside the aggregates
+
+| Script | API / Source | Raw output | 5m output |
+|--------|-------------|------------|-----------|
+| `collect_binance.py` | Binance public REST | — | `raw/binance/{pair}_5m.parquet` |
+| `collect_coinapi.py` | CoinAPI VWAP (paid) | — | `raw/coinapi/{coin}_5m.parquet` |
+| `collect_onchain.py` | Etherscan V2 API | `raw/onchain/{coin}_eth_events.parquet` | `raw/onchain/{coin}_eth_5m.parquet` |
+| `collect_tron.py` | TronGrid API | `raw/onchain/usdt_tron_events.parquet` | `raw/onchain/usdt_tron_5m.parquet` |
+| `collect_curve.py` | Etherscan V2 API | `raw/curve/{pool}_events.parquet` | `raw/curve/{pool}_5m.parquet` |
+| `collect_xrpl.py` | XRPL public RPC | `raw/onchain/rlusd_xrpl_events.parquet` | `raw/onchain/rlusd_xrpl_5m.parquet` |
+| `collect_dune.py` | Dune Analytics API | `raw/onchain/usdc_sol_events_dune.parquet` | `raw/onchain/usdc_sol_5m.parquet` |
+| `collect_fred.py` | FRED API | `raw/fred/fred_daily.parquet` | — (daily, forward-filled in merge) |
+| `collect_market.py` | CoinGecko / AltIndex | `raw/market/btc_eth_daily.parquet`, `raw/market/fear_greed.parquet` | — (daily, forward-filled in merge) |
+
+**Collector-specific notes:**
+
+- **Etherscan** (`collect_onchain.py`, `collect_curve.py`): paginates in 100k-block chunks with
+  adaptive bisection when the 1,000-result-per-page limit is hit. Checkpoints after each chunk.
+- **XRPL** (`collect_xrpl.py`): paginates in 100k-ledger chunks (~4 days). Ripple epoch offset
+  (+946,684,800s) applied for timestamp conversion. Checkpoints after each chunk.
+- **Dune** (`collect_dune.py`): executes via async API in 3-week chunks (to stay under Dune's
+  32k-row-per-execution limit). Mints identified by `action='mint'`, burns by `action='burn'`
+  in `tokens_solana.transfers`. Checkpoints after each chunk.
+- **TronGrid** (`collect_tron.py`): inter-treasury transfers between known Tether wallets are
+  excluded to avoid double-counting.
+
+---
+
+### Stage 2 — Merge (`merge_sources.py`)
+
+Builds a continuous 5-min UTC index per coin from the coin's launch date to `GLOBAL_END_DATE`
+(2026-02-28 23:55 UTC). All 5-min sources are joined directly onto this index. Daily sources
+(FRED, Fear & Greed, BTC/ETH) are forward-filled into 5-min bars. Output is a single wide
+Parquet with all columns present but no filling or cleaning applied — NaN means the source had
+no data for that bar.
+
+---
+
+### Stage 3 — Cleaning (`clean_data.py`)
+
 1. **Zero-fill** event columns — absence of an on-chain event means zero activity, not missing data
 2. **Forward-fill** daily series — FRED and Fear & Greed propagate last known value to 5m bars
 3. **Forward-fill** 5m market context — BTC/ETH closes have occasional gaps
 4. **Null + forward-fill** CoinAPI price anomalies — bars with price outside [0.50, 2.00] are
-   feed errors; UST is exempt
+   feed errors; UST is exempt since its collapse legitimately breached those bounds
 5. **Trim head rows** — rows before the first valid price across all key columns are dropped
+6. **Compute `total_net_flow_usd`** — unified institutional flow signal (USDT: ETH + TRON
+   treasury net flow; all others: on-chain mint − burn)
+
+---
+
+### Stage 4 — Labelling (`label_data.py`)
+
+Adds depeg labels in-place to `{coin}_5m.parquet`. Depeg is defined as 3 or more consecutive
+5-min bars with `|coinapi_close − peg| > 0.005`. Forward-looking labels (`depeg_next_5min`,
+`depeg_next_30min`, `depeg_next_1h`, `depeg_next_4h`) mark bars from which a depeg episode
+begins within the given horizon.
 
 ---
 
@@ -281,7 +341,7 @@ Raw files are in `data/raw/` organized by source:
 |-----------|----------|
 | `raw/binance/` | 5m OHLCV Parquet files per trading pair |
 | `raw/coinapi/` | 5m VWAP OHLCV Parquet files per coin |
-| `raw/onchain/` | Ethereum and TRON on-chain event files |
+| `raw/onchain/` | Ethereum mint/burn events + USDT treasury flows (ETH + TRON) + XRPL RLUSD events + Solana USDC events |
 | `raw/curve/` | Curve pool TokenExchange events and 5m aggregations |
 | `raw/fred/` | Daily FRED macro data |
 | `raw/market/` | Daily BTC/ETH prices and Fear & Greed index |

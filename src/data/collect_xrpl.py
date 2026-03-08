@@ -46,7 +46,7 @@ from config.settings import RAW_DIR
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-XRPL_URL            = "https://s2.ripple.com:51234"
+XRPL_URL            = "https://xrplcluster.com"
 RIPPLE_EPOCH_OFFSET = 946_684_800          # Unix − Ripple epoch (seconds)
 
 RLUSD_ISSUER   = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"
@@ -58,16 +58,16 @@ RLUSD_LAUNCH_LEDGER = 92_000_000
 # Ledgers per chunk (~4 days at 0.26 ledgers/sec)
 CHUNK_LEDGERS = 100_000
 
-PAGE_LIMIT  = 1000   # max transactions per API call (XRPL maximum)
+PAGE_LIMIT  = 200    # smaller pages to avoid IncompleteRead on large responses
 RATE_DELAY  = 0.15   # seconds between calls
 
 # ── XRPL API ──────────────────────────────────────────────────────────────────
 
-def _post(method: str, params: dict, retries: int = 5) -> dict:
+def _post(method: str, params: dict, retries: int = 10) -> dict:
     payload = {"method": method, "params": [params]}
     for attempt in range(retries):
         try:
-            r = requests.post(XRPL_URL, json=payload, timeout=30)
+            r = requests.post(XRPL_URL, json=payload, timeout=120)
             r.raise_for_status()
             return r.json().get("result", {})
         except requests.RequestException as e:
