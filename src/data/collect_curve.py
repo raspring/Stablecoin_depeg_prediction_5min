@@ -4,9 +4,10 @@ Collect Curve Finance pool swap events as stablecoin stress indicators.
 Source: Etherscan Logs API (V2)
 
 Pools tracked:
-  3pool   — DAI/USDC/USDT (0xbEbc44...)  classic StableSwap, Sep 2020
-  usde    — USDe/USDC    (0x029504...) StableSwap-NG, Nov 2023
-  rlusd   — RLUSD/USDC   (0xd001ae...) StableSwap-NG, Dec 2024
+  3pool      — DAI/USDC/USDT  (0xbEbc44...)  classic StableSwap, Sep 2020
+  busd_3crv  — BUSD/3CRV      (0x4807862...) metapool, Sep 2020 → Mar 2023
+  usde       — USDe/USDC      (0x029504...) StableSwap-NG, Nov 2023
+  rlusd      — RLUSD/USDC     (0xd001ae...) StableSwap-NG, Dec 2024
 
 Signal rationale:
   In each pool a token being *sold* means the trader wants OUT of that token.
@@ -69,6 +70,37 @@ POOL_CONFIGS = {
             0: ("dai",  18),
             1: ("usdc",  6),
             2: ("usdt",  6),
+        },
+    },
+    "ust_3crv": {
+        "contract":     "0x890f4e345B1dAED0367A877a1612f86A1f86985f",
+        "deploy_block": 11_466_568,   # Dec 2020
+        "topic0":       _TOPIC_TOKEN_EXCHANGE,
+        # UST metapool: index 0 = UST (18 decimals), index 1 = 3CRV (virtual token, 18 decimals)
+        "tokens": {
+            0: ("ust",  18),
+            1: ("3crv", 18),
+        },
+    },
+    "ust_wormhole_3crv": {
+        "contract":     "0xCEAF7747579696A2F0bb206a14210e3c9e6fB269",
+        "deploy_block": 13_415_127,   # Oct 2021
+        "topic0":       _TOPIC_TOKEN_EXCHANGE,
+        # Wormhole v2 UST metapool: index 0 = wUST (6 decimals), index 1 = 3CRV (18 decimals)
+        "tokens": {
+            0: ("wust", 6),
+            1: ("3crv", 18),
+        },
+    },
+    "busd_3crv": {
+        "contract":     "0x4807862AA8b2bF68830e4C8dc86D0e9A998e085a",
+        "deploy_block": 10_917_097,   # Sep 2020
+        "topic0":       _TOPIC_TOKEN_EXCHANGE,
+        # BUSD metapool: index 0 = BUSD, index 1 = 3CRV (virtual token)
+        # Exchange events show swaps between BUSD and the underlying 3pool tokens
+        "tokens": {
+            0: ("busd", 18),
+            1: ("3crv", 18),
         },
     },
     "usde_usdc": {

@@ -12,13 +12,13 @@ and `processed/cleansed/` (clean + labeled, modeling-ready).
 
 | File | Coin | Rows | Cols | Date Range | Notes |
 |------|------|-----:|-----:|------------|-------|
-| `usdt_5m.parquet` | Tether (USDT) | 897,936 | 66 | 2017-08-17 → 2026-02-28 | Richest feature set |
-| `usdc_5m.parquet` | USD Coin (USDC) | 775,506 | 45 | 2018-10-16 → 2026-02-28 | |
+| `usdt_5m.parquet` | Tether (USDT) | 897,936 | 66 | 2017-08-17 → 2026-02-28 | ETH + TRON treasury flows |
+| `usdc_5m.parquet` | USD Coin (USDC) | 775,506 | 83 | 2018-10-16 → 2026-02-28 | ETH + Solana mint/burn |
 | `dai_5m.parquet`  | Dai (DAI) | 828,963 | 45 | 2018-04-13 → 2026-02-28 | |
-| `busd_5m.parquet` | Binance USD (BUSD) | 370,848 | 30 | 2019-09-20 → 2023-03-31 | Discontinued Mar 2023 |
-| `ust_5m.parquet`  | TerraUSD (UST) | 153,961 | 24 | 2020-11-23 → 2022-05-12 | Failed May 2022 |
+| `busd_5m.parquet` | Binance USD (BUSD) | 370,848 | 40 | 2019-09-20 → 2023-03-31 | Discontinued Mar 2023 |
+| `ust_5m.parquet`  | TerraUSD (UST) | 153,961 | 44 | 2020-11-23 → 2022-05-12 | Failed May 2022; Curve only (no ETH on-chain) |
 | `usde_5m.parquet` | Ethena USDe (USDe) | 200,928 | 40 | 2024-04-02 → 2026-02-28 | |
-| `rlusd_5m.parquet`| Ripple USD (RLUSD) | 96,192 | 40 | 2025-04-01 → 2026-02-28 | |
+| `rlusd_5m.parquet`| Ripple USD (RLUSD) | 96,192 | 45 | 2025-04-01 → 2026-02-28 | ETH + XRPL mint/burn |
 
 CSV copies mirror the same structure in `csv/processed/merged/` and `csv/processed/cleansed/`.
 
@@ -62,23 +62,19 @@ available and sufficient precision for market context.
 
 ---
 
-### Binance Trading Pairs — USDT only
+### Binance Trading Pairs
 
-Source: Binance public API. USDT has the most liquid cross-pairs on Binance.
-The USDCUSDT pair was listed mid-2019 so ~21% of rows are null at the head.
+Source: Binance public API. Coin-specific cross-pairs provide relative price and liquidity signals.
+Column naming: `binance_{pair}_{field}` where field ∈ `{open, high, low, close, volume, quote_volume, trades, taker_buy_volume, taker_buy_quote_volume, buy_ratio, spread_proxy}`.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `binance_usdcusdt_open/high/low/close` | float | USDC/USDT 5m OHLC (proxy for USDT vs USDC relative price) |
-| `binance_usdcusdt_volume` | float | USDC volume traded (base asset) |
-| `binance_usdcusdt_quote_volume` | float | USDT volume traded (quote asset) |
-| `binance_usdcusdt_trades` | float | Number of trades in the 5m bar |
-| `binance_usdcusdt_taker_buy_volume` | float | Volume where taker was the buyer (aggression signal) |
-| `binance_usdcusdt_taker_buy_quote_volume` | float | Quote volume of taker buys |
-| `binance_usdcusdt_buy_ratio` | float | `taker_buy_volume / volume` — 1.0 = all buys, 0.0 = all sells |
-| `binance_usdcusdt_spread_proxy` | float | `(high - low) / close` — intra-bar volatility proxy |
+| Pair | Available for | Notes |
+|------|---------------|-------|
+| `binance_usdcusdt_*` | USDT, USDC | USDC/USDT relative price — proxy for USDT vs USDC stress; listed mid-2019 (~21% null at head for USDT) |
+| `binance_btcusdc_*` | USDC | BTC quoted in USDC — measures USDC demand under crypto stress |
+| `binance_ethusdc_*` | USDC | ETH quoted in USDC |
 
-**Availability:** USDT only.
+Each pair provides 11 columns: `open`, `high`, `low`, `close`, `volume`, `quote_volume`, `trades`,
+`taker_buy_volume`, `taker_buy_quote_volume`, `buy_ratio` (`taker_buy_volume / volume`), `spread_proxy` (`(high−low)/close`).
 
 ---
 
@@ -143,6 +139,42 @@ cycle. Inter-treasury transfers are excluded to avoid double-counting.
 
 ---
 
+### USDC Solana Mint / Burn — USDC only
+
+Source: Dune Analytics (`tokens_solana.transfers`, query 6794492) for history (Oct 2020 → Nov 2025);
+Helius enhanced API for incremental updates. USDC is natively issued by Circle on Solana
+(mint: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`). 711k+ events collected.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `sol_mint_count` | float | Number of USDC mint events on Solana in this 5m window (zero-filled) |
+| `sol_mint_volume_usd` | float | USD value of USDC minted on Solana |
+| `sol_burn_count` | float | Number of USDC burn events on Solana (zero-filled) |
+| `sol_burn_volume_usd` | float | USD value of USDC burned on Solana |
+| `sol_net_flow_usd` | float | `mint_volume − burn_volume` on Solana |
+
+**Availability:** USDC only.
+
+---
+
+### RLUSD XRPL Mint / Burn — RLUSD only
+
+Source: Dune Analytics (XRPL dataset, query 6811285). RLUSD is issued by Ripple on the XRP Ledger
+(currency hex: `524C555344000000000000000000000000000000`, issuer: `rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De`).
+5,559 events collected (Nov 2024 → Feb 2026).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `xrpl_mint_count` | float | Number of RLUSD mint payments on XRPL in this 5m window (zero-filled) |
+| `xrpl_mint_volume_usd` | float | USD value of RLUSD minted on XRPL |
+| `xrpl_burn_count` | float | Number of RLUSD burn payments on XRPL (zero-filled) |
+| `xrpl_burn_volume_usd` | float | USD value of RLUSD burned on XRPL |
+| `xrpl_net_flow_usd` | float | `mint_volume − burn_volume` on XRPL |
+
+**Availability:** RLUSD only.
+
+---
+
 ### Unified Institutional Flow Signal
 
 Computed in `clean_data.py` to provide a single consistent flow signal across all coins.
@@ -177,6 +209,32 @@ Pool address: `0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7` — deployed Sep 2020
 
 Where `{token}` ∈ `{dai, usdc, usdt}`. Each coin's file includes all three tokens' columns
 (since a swap involving one token also involves the others).
+
+#### Curve BUSD/3CRV pool — available for BUSD
+
+Pool address: `0x4807862AA8b2bF68830e4C8dc86D0e9A998e085a` — deployed Sep 2020, inactive after Mar 2023.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `curve_busd_3crv_{token}_sold_count` | float | # swaps selling `{token}` |
+| `curve_busd_3crv_{token}_sold_volume_usd` | float | USD volume sold |
+| `curve_busd_3crv_{token}_bought_count` | float | # swaps buying `{token}` |
+| `curve_busd_3crv_{token}_bought_volume_usd` | float | USD volume bought |
+| `curve_busd_3crv_{token}_net_sell_volume_usd` | float | `sold − bought` |
+
+Where `{token}` ∈ `{busd, 3crv}`.
+
+#### Curve UST/3CRV pools — available for UST
+
+Two pools tracked to capture UST's May 2022 collapse on-chain:
+
+- **ust_3crv**: `0x890f4e345B1dAED0367A877a1612f86A1f86985f` — deployed Dec 2020 (`{token}` ∈ `{ust, 3crv}`)
+- **ust_wormhole_3crv**: `0xCEAF7747579696A2F0bb206a14210e3c9e6fB269` — deployed Oct 2021, Wormhole-bridged UST (`{token}` ∈ `{wust, 3crv}`)
+
+Columns follow the same pattern: `curve_{pool}_{token}_{sold_count, sold_volume_usd, bought_count, bought_volume_usd, net_sell_volume_usd}`.
+
+**Note:** UST (TerraUSD) was Terra-native — no ERC-20 on-chain mint/burn data exists. Curve pool
+swap data is the primary on-chain stress signal available for UST.
 
 #### Curve USDe/USDC pool — available for USDe
 
@@ -283,20 +341,22 @@ Each collector fetches from its API, applies only unavoidable transformations, a
 | `collect_onchain.py` | Etherscan V2 API | `raw/onchain/{coin}_eth_events.parquet` | `raw/onchain/{coin}_eth_5m.parquet` |
 | `collect_tron.py` | TronGrid API | `raw/onchain/usdt_tron_events.parquet` | `raw/onchain/usdt_tron_5m.parquet` |
 | `collect_curve.py` | Etherscan V2 API | `raw/curve/{pool}_events.parquet` | `raw/curve/{pool}_5m.parquet` |
-| `collect_xrpl.py` | XRPL public RPC | `raw/onchain/rlusd_xrpl_events.parquet` | `raw/onchain/rlusd_xrpl_5m.parquet` |
-| `collect_dune.py` | Dune Analytics API | `raw/onchain/usdc_sol_events_dune.parquet` | `raw/onchain/usdc_sol_5m.parquet` |
-| `collect_fred.py` | FRED API | `raw/fred/fred_daily.parquet` | — (daily, forward-filled in merge) |
-| `collect_market.py` | CoinGecko / AltIndex | `raw/market/btc_eth_daily.parquet`, `raw/market/fear_greed.parquet` | — (daily, forward-filled in merge) |
+| `collect_dune_xrpl.py` | Dune Analytics (XRPL) | `raw/onchain/rlusd_xrpl_events.parquet` | `raw/onchain/rlusd_xrpl_5m.parquet` |
+| `collect_dune.py` | Dune Analytics (Solana) | `raw/onchain/usdc_sol_events_dune.parquet` | `raw/onchain/usdc_sol_5m.parquet` |
+| `collect_solana.py` | Helius API (Solana) | `raw/onchain/usdc_sol_events.parquet` | merged into `usdc_sol_5m.parquet` |
+| `collect_fred.py` | FRED API | `raw/fred/macro.parquet` | — (daily, forward-filled in merge) |
+| `collect_market.py` | Alternative.me (Fear & Greed) | `raw/market/market_daily.parquet` | — (daily, forward-filled in merge) |
 
 **Collector-specific notes:**
 
 - **Etherscan** (`collect_onchain.py`, `collect_curve.py`): paginates in 100k-block chunks with
   adaptive bisection when the 1,000-result-per-page limit is hit. Checkpoints after each chunk.
-- **XRPL** (`collect_xrpl.py`): paginates in 100k-ledger chunks (~4 days). Ripple epoch offset
-  (+946,684,800s) applied for timestamp conversion. Checkpoints after each chunk.
-- **Dune** (`collect_dune.py`): executes via async API in 3-week chunks (to stay under Dune's
-  32k-row-per-execution limit). Mints identified by `action='mint'`, burns by `action='burn'`
-  in `tokens_solana.transfers`. Checkpoints after each chunk.
+- **Dune XRPL** (`collect_dune_xrpl.py`): executes in 60-day chunks. RLUSD currency stored as
+  hex `524C555344000000000000000000000000000000`; timestamp from `_ledger_close_time_human`.
+- **Dune Solana** (`collect_dune.py`): executes in 3-week chunks (stay under Dune's 32k-row limit).
+  Mints/burns from `tokens_solana.transfers` with `action IN ('mint','burn')`. Checkpoints after each chunk.
+- **Helius** (`collect_solana.py`): incremental USDC Solana updates via enhanced transaction API.
+  Deduped and merged with Dune output on `tx_hash + event_type`. Only indexes back to ~Aug 2024.
 - **TronGrid** (`collect_tron.py`): inter-treasury transfers between known Tether wallets are
   excluded to avoid double-counting.
 

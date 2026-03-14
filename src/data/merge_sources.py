@@ -122,6 +122,30 @@ def load_onchain(coin_key: str) -> pd.DataFrame:
     return df.set_index("timestamp").sort_index()
 
 
+def load_solana(coin_key: str) -> pd.DataFrame:
+    """Load 5-min Solana mint/burn flows (USDC only)."""
+    if coin_key != "usdc":
+        return pd.DataFrame()
+    path = RAW_DIR / "onchain" / "usdc_sol_5m.parquet"
+    if not path.exists():
+        return pd.DataFrame()
+    df = pd.read_parquet(path)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return df.set_index("timestamp").sort_index()
+
+
+def load_xrpl(coin_key: str) -> pd.DataFrame:
+    """Load 5-min RLUSD XRPL mint/burn flows (RLUSD only)."""
+    if coin_key != "rlusd":
+        return pd.DataFrame()
+    path = RAW_DIR / "onchain" / "rlusd_xrpl_5m.parquet"
+    if not path.exists():
+        return pd.DataFrame()
+    df = pd.read_parquet(path)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return df.set_index("timestamp").sort_index()
+
+
 def load_tron(coin_key: str) -> pd.DataFrame:
     """Load 5-min USDT TRON treasury flows (USDT only)."""
     if coin_key != "usdt":
@@ -138,9 +162,12 @@ def load_tron(coin_key: str) -> pd.DataFrame:
 
 # Curve pool → coins it covers (for routing per-coin joins)
 _CURVE_POOL_COINS = {
-    "3pool":      ["usdt", "usdc", "dai"],
-    "usde_usdc":  ["usde"],
-    "rlusd_usdc": ["rlusd"],
+    "3pool":            ["usdt", "usdc", "dai"],
+    "busd_3crv":        ["busd"],
+    "ust_3crv":         ["ust"],
+    "ust_wormhole_3crv":["ust"],
+    "usde_usdc":        ["usde"],
+    "rlusd_usdc":       ["rlusd"],
 }
 
 
@@ -189,10 +216,12 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
     coinapi_df  = load_coinapi(coin_key)
     onchain_df  = load_onchain(coin_key)
     tron_df     = load_tron(coin_key)
+    xrpl_df     = load_xrpl(coin_key)
+    solana_df   = load_solana(coin_key)
     curve_df    = load_curve(coin_key)
 
     # Determine date range from available 5m data
-    all_5m = [df for df in [binance_df, coinapi_df, onchain_df, tron_df, curve_df] if not df.empty]
+    all_5m = [df for df in [binance_df, coinapi_df, onchain_df, tron_df, xrpl_df, solana_df, curve_df] if not df.empty]
     if not all_5m:
         print(f"  No 5m data found for {coin_key}. Run collectors first.")
         return pd.DataFrame()
@@ -225,6 +254,8 @@ def merge_coin(coin_key: str) -> pd.DataFrame:
     for name, df in [
         ("onchain",  onchain_df),
         ("tron",     tron_df),
+        ("xrpl",     xrpl_df),
+        ("solana",   solana_df),
         ("curve",    curve_df),
     ]:
         if not df.empty:

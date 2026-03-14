@@ -1,13 +1,15 @@
 """
-Collect daily market sentiment data.
-
-- BTC and ETH daily prices via CoinGecko (free)
-- Fear & Greed Index via alternative.me (free)
+Collect daily Fear & Greed Index via alternative.me (free, no API key).
 
 Resolution: daily. Forward-filled to 5m in merge_sources.py.
+
+BTC/ETH prices are collected at 5m resolution by collect_binance.py
+(binance_btc_close, binance_eth_close) — no daily CoinGecko prices needed.
+
+Output: data/raw/market/market_daily.parquet
+  Columns: date, fear_greed
 """
 
-import time
 from pathlib import Path
 
 import pandas as pd
@@ -17,25 +19,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from config.settings import RAW_DIR, GLOBAL_START_DATE
 
-COINGECKO_URL = "https://api.coingecko.com/api/v3"
 FEAR_GREED_URL = "https://api.alternative.me/fng/"
-RATE_LIMIT_DELAY = 1.5
-
-
-def get_coingecko_prices(coin_id: str, days: int = 4000) -> pd.DataFrame:
-    url = f"{COINGECKO_URL}/coins/{coin_id}/market_chart"
-    params = {"vs_currency": "usd", "days": str(days), "interval": "daily"}
-    response = requests.get(url, params=params, timeout=30)
-    response.raise_for_status()
-    time.sleep(RATE_LIMIT_DELAY)
-
-    data = response.json()
-    df = pd.DataFrame({
-        "date": pd.to_datetime([x[0] for x in data["prices"]], unit="ms", utc=True).normalize(),
-        f"{coin_id}_price": [x[1] for x in data["prices"]],
-        f"{coin_id}_volume": [x[1] for x in data["total_volumes"]],
-    })
-    return df.drop_duplicates(subset=["date"]).reset_index(drop=True)
 
 
 def get_fear_greed(limit: int = 4000) -> pd.DataFrame:
@@ -44,55 +28,20 @@ def get_fear_greed(limit: int = 4000) -> pd.DataFrame:
 
     data = response.json().get("data", [])
     df = pd.DataFrame({
-        "date": pd.to_datetime([int(r["timestamp"]) for r in data], unit="s", utc=True).normalize(),
+        "date":       pd.to_datetime([int(r["timestamp"]) for r in data], unit="s", utc=True).normalize(),
         "fear_greed": [int(r["value"]) for r in data],
     })
     return df.sort_values("date").reset_index(drop=True)
 
 
-def collect_fear_greed() -> pd.DataFrame:
-    """Collect Fear & Greed index only (no API key required)."""
+def collect_all() -> pd.DataFrame:
     print("  Collecting Fear & Greed index...")
     fg = get_fear_greed()
     start = pd.Timestamp(GLOBAL_START_DATE, tz="UTC")
     fg = fg[fg["date"] >= start].reset_index(drop=True)
-    print(f"  Fear & Greed: {len(fg)} daily records ({fg['date'].min().date()} → {fg['date'].max().date()})")
+    print(f"  Fear & Greed: {len(fg)} daily records "
+          f"({fg['date'].min().date()} → {fg['date'].max().date()})")
     return fg
-
-
-def collect_all() -> pd.DataFrame:
-    """
-    Returns daily DataFrame with columns:
-        date, btc_price, btc_volume, eth_price, eth_volume, fear_greed
-
-    Requires COINGECKO_API_KEY for BTC/ETH prices. Fear & Greed is always
-    collected (no key needed). If no CoinGecko key is available, use
-    collect_fear_greed() directly — BTC/ETH prices are also covered by the
-    Binance collector at 5m resolution.
-    """
-    import os
-    api_key = os.getenv("COINGECKO_API_KEY")
-    if not api_key or api_key.startswith("your_"):
-        print("  No COINGECKO_API_KEY — collecting Fear & Greed only.")
-        print("  (BTC/ETH prices will come from the Binance collector.)")
-        return collect_fear_greed()
-
-    print("  Collecting BTC prices...")
-    btc = get_coingecko_prices("bitcoin")
-
-    print("  Collecting ETH prices...")
-    eth = get_coingecko_prices("ethereum")
-
-    fg = collect_fear_greed()
-
-    merged = btc.merge(eth, on="date", how="outer").merge(fg, on="date", how="left")
-    merged = merged.sort_values("date").reset_index(drop=True)
-
-    start = pd.Timestamp(GLOBAL_START_DATE, tz="UTC")
-    merged = merged[merged["date"] >= start].reset_index(drop=True)
-
-    print(f"  Market: {len(merged)} daily records ({merged['date'].min().date()} → {merged['date'].max().date()})")
-    return merged
 
 
 def save(df: pd.DataFrame) -> Path:

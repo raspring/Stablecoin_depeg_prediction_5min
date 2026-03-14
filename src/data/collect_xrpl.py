@@ -55,10 +55,10 @@ RLUSD_CURRENCY = "524C555344000000000000000000000000000000"
 # Approximate ledger at RLUSD launch (Dec 2024). Safe lower bound.
 RLUSD_LAUNCH_LEDGER = 92_000_000
 
-# Ledgers per chunk (~4 days at 0.26 ledgers/sec)
-CHUNK_LEDGERS = 100_000
+# Ledgers per chunk (~1 day at 0.26 ledgers/sec)
+CHUNK_LEDGERS = 20_000
 
-PAGE_LIMIT  = 200    # smaller pages to avoid IncompleteRead on large responses
+PAGE_LIMIT  = 100    # smaller pages to avoid IncompleteRead on large responses
 RATE_DELAY  = 0.15   # seconds between calls
 
 # ── XRPL API ──────────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ def _post(method: str, params: dict, retries: int = 10) -> dict:
             r = requests.post(XRPL_URL, json=payload, timeout=120)
             r.raise_for_status()
             return r.json().get("result", {})
-        except requests.RequestException as e:
+        except Exception as e:
             wait = 2 ** attempt
             print(f"    Retry {attempt+1}/{retries} in {wait}s: {e}")
             time.sleep(wait)
@@ -206,11 +206,15 @@ def collect_chunk(ledger_min: int, ledger_max: int) -> list[dict]:
     n_pages = 0
 
     while True:
+        print(f"      page {n_pages+1} (marker={'yes' if marker else 'none'}) ...", end=" ", flush=True)
         result = fetch_page(ledger_min, ledger_max, marker)
         txs    = result.get("transactions", [])
         n_pages += 1
+        page_events = []
         for tx_entry in txs:
-            events.extend(parse_tx(tx_entry))
+            page_events.extend(parse_tx(tx_entry))
+        events.extend(page_events)
+        print(f"{len(txs)} txs, {len(page_events)} events")
         marker = result.get("marker")
         if not marker or not txs:
             break
