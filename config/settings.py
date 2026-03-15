@@ -7,6 +7,7 @@ RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 MERGED_DIR    = PROCESSED_DIR / "merged"
 CLEANSED_DIR  = PROCESSED_DIR / "cleansed"
+FEATURES_DIR  = PROCESSED_DIR / "features"
 
 # Native resolution
 INTERVAL = "5m"
