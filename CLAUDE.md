@@ -37,6 +37,10 @@ python src/data/label_data.py [coin|all]      # add depeg labels → {coin}_5m.p
 
 # Run tests
 pytest tests/
+
+# Feature engineering (run after label_data.py)
+python src/features/feature_engineering.py [coin|all]  # per-coin feature files
+python src/features/build_pooled_dataset.py            # stack all coins → pooled_5m.parquet
 ```
 
 ## Architecture
@@ -55,6 +59,15 @@ pytest tests/
 ### Merge pipeline
 `merge_sources.py` builds a 5m UTC index per coin, joins 5m sources directly, and
 forward-fills daily sources. Output: `data/processed/{coin}_5m.parquet`.
+
+### Feature pipeline
+- **FeatureEngineer** (`src/features/feature_engineering.py`) — builds ~74 features per coin
+  (price momentum, on-chain flows, Curve DEX pressure, market context, cross-coin, temporal, lags).
+  Output: `data/processed/features/{coin}_5m_features.parquet`
+- **PooledDataset** (`src/features/build_pooled_dataset.py`) — selects the 76 common columns,
+  adds `coin_key`, stacks all 7 coins. Output: `data/processed/features/pooled_5m.parquet`
+  (3.3M rows, 9.68% depeg rate, target = `depeg_next_1h`)
+- Full feature reference: `src/features/README.md`
 
 ## Storage
 
