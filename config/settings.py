@@ -13,9 +13,16 @@ FEATURES_DIR  = PROCESSED_DIR / "features"
 INTERVAL = "5m"
 INTERVAL_MINUTES = 5
 
-# Depeg threshold
+# Depeg threshold (default)
 DEPEG_THRESHOLD = 0.005        # 0.5% from peg
 DEPEG_CONSECUTIVE_BARS = 3     # must breach threshold for 3 consecutive 5-min bars (15 min)
+
+# Per-coin depeg thresholds (overrides DEPEG_THRESHOLD where specified)
+# DAI: crypto-collateralized, higher natural price variance → 1% threshold
+# All others: fiat-backed or delta-neutral → default 0.5%
+COIN_DEPEG_THRESHOLDS = {
+    "dai": 0.010,
+}
 
 # Global start date (per-coin dates override this)
 GLOBAL_START_DATE = "2015-01-01"

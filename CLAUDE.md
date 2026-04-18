@@ -16,31 +16,29 @@ Data goes back to 2015-01-01 (USDT); other coins use their own launch dates.
 pip install -r requirements.txt
 
 # Collect data
-python src/data/collect_all.py usdt
-python src/data/collect_all.py all
-python src/data/collect_all.py all --no-coinapi   # skip until key is ready
-python src/data/collect_all.py all --no-daily     # skip FRED/market/defillama
+python src/data_collection_scripts/collect_all.py usdt
+python src/data_collection_scripts/collect_all.py all
+python src/data_collection_scripts/collect_all.py all --no-coinapi      # skip CoinAPI if key not ready
+python src/data_collection_scripts/collect_all.py all --no-orderbook    # skip order book if key not ready
+python src/data_collection_scripts/collect_all.py all --no-daily        # skip FRED/market
 
 # Collect individual sources
-python src/data/collect_binance.py [coin|all]     # free, 5m OHLCV
-python src/data/collect_coinapi.py [coin|all]     # paid, fiat pair OHLCV
-python src/data/collect_fred.py                   # daily macro (FRED_API_KEY)
-python src/data/collect_market.py                 # daily BTC/ETH/Fear&Greed
-python src/data/collect_onchain.py [coin|all]     # Ethereum mint/burn + USDT treasury flows (ETHERSCAN_API_KEY)
-python src/data/collect_tron.py                   # USDT TRON treasury flows (TRONGRID_API_KEY optional)
-python src/data/collect_curve.py [pool|all]       # Curve pool swap events (ETHERSCAN_API_KEY)
-
-# Build modeling-ready 5m Parquet (run in order)
-python src/data/merge_sources.py [coin|all]   # pure join → {coin}_5m_raw.parquet
-python src/data/clean_data.py [coin|all]      # zero-fill events, ffill daily → {coin}_5m.parquet
-python src/data/label_data.py [coin|all]      # add depeg labels → {coin}_5m.parquet (in-place)
+python src/data_collection_scripts/collect_binance.py [coin|all]     # free, 5m OHLCV
+python src/data_collection_scripts/collect_coinapi.py [coin|all]     # paid, fiat pair OHLCV
+python src/data_collection_scripts/collect_fred.py                   # daily macro (FRED_API_KEY)
+python src/data_collection_scripts/collect_market.py                 # daily BTC/ETH/Fear&Greed
+python src/data_collection_scripts/collect_defillama.py              # daily stablecoin circulating supply
+python src/data_collection_scripts/collect_onchain.py [coin|all]     # Ethereum mint/burn + USDT treasury flows (ETHERSCAN_API_KEY)
+python src/data_collection_scripts/collect_tron.py                   # USDT TRON treasury flows (TRONGRID_API_KEY optional)
+python src/data_collection_scripts/collect_omni.py                   # USDT Omni Layer treasury flows (Bitcoin)
+python src/data_collection_scripts/collect_curve.py [pool|all]       # Curve pool swap events (ETHERSCAN_API_KEY)
+python src/data_collection_scripts/collect_solana.py                 # USDC Solana mint/burn via Helius API
+python src/data_collection_scripts/collect_dune.py                   # USDC Solana historical mint/burn via Dune Analytics
+python src/data_collection_scripts/collect_xrpl.py                   # RLUSD mint/burn + DEX flows on XRPL
+python src/data_collection_scripts/collect_orderbook.py              # order book snapshots (COINAPI_MARKETDATA_KEY)
 
 # Run tests
 pytest tests/
-
-# Feature engineering (run after label_data.py)
-python src/features/feature_engineering.py [coin|all]  # per-coin feature files
-python src/features/build_pooled_dataset.py            # stack all coins → pooled_5m.parquet
 ```
 
 ## Architecture
@@ -48,26 +46,37 @@ python src/features/build_pooled_dataset.py            # stack all coins → poo
 ### Native 5-minute sources
 - **BinanceCollector** (`collect_binance.py`) — free public API, BTCUSDT/ETHUSDT etc., full history from Aug 2017
 - **CoinAPICollector** (`collect_coinapi.py`) — paid, fiat pairs (USDTUSD, USDCUSD, DAIUSD), full history
+- **OrderbookCollector** (`collect_orderbook.py`) — CoinAPI Market Data API order book snapshots (separate key: `COINAPI_MARKETDATA_KEY`)
 - **OnchainCollector** (`collect_onchain.py`) — Ethereum mint/burn events + USDT ETH treasury flows via Etherscan V2 API
 - **TronCollector** (`collect_tron.py`) — USDT treasury inflow/outflow on TRON via TronGrid API
+- **OmniCollector** (`collect_omni.py`) — USDT Omni Layer treasury inflow/outflow on Bitcoin via OmniExplorer API
 - **CurveCollector** (`collect_curve.py`) — TokenExchange events on Curve 3pool, USDe/USDC, and RLUSD/USDC pools via Etherscan V2 API
+- **SolanaCollector** (`collect_solana.py`) — USDC Solana mint/burn events via Helius enhanced API (Aug 2024 →)
+- **DuneCollector** (`collect_dune.py`) — USDC Solana mint/burn via Dune Analytics (Oct 2020 → Aug 2024 historical baseline)
+- **XRPLCollector** (`collect_xrpl.py`) — RLUSD mint/burn and DEX trading flows on XRP Ledger
 
 ### Daily sources (forward-filled to 5m in merge)
 - **FREDCollector** (`collect_fred.py`) — DXY, VIX, T10Y, Fed Funds
 - **MarketCollector** (`collect_market.py`) — BTC/ETH prices, Fear & Greed
+- **DeFiLlamaCollector** (`collect_defillama.py`) — daily stablecoin circulating supply
 
-### Merge pipeline
-`merge_sources.py` builds a 5m UTC index per coin, joins 5m sources directly, and
-forward-fills daily sources. Output: `data/processed/{coin}_5m.parquet`.
+### Processing pipeline (Jupyter notebooks)
+All post-collection processing lives in `notebooks/`:
+- `01_merge_raw_data.ipynb` — pure join → `data/processed/merged/{coin}_5m_raw.parquet`
+- `02_clean_merged_data.ipynb` — zero-fill events, ffill daily → `data/processed/cleansed/{coin}_5m.parquet`
+- `03_eda.ipynb` — exploratory data analysis (all depegs)
+- `03b_eda_downside.ipynb` — EDA scoped to below-peg events only
+- `04_feature_engineering.ipynb` — ~74 features per coin → `data/processed/features/{coin}_5m_features.parquet`
+- `05_build_pooled_dataset.ipynb` — stack all coins → `data/processed/features/pooled_5m.parquet` (3.3M rows, 9.68% depeg, target = `depeg_next_1h`)
+- `06_eda_features.ipynb` — feature EDA
+- `07_depeg_event_study.ipynb` — event study around historical depegs
+- `08_feature_selection.ipynb` — variance/correlation/MI/L1/RF feature selection → `data/processed/features/selected_features.json`
+- `09_baseline_models.ipynb` — baseline ML models
+- `10_final_model.ipynb` — tuned CatBoost (Optuna 50-trial HPO), saves model + predictions
+- `11_threshold_and_ops.ipynb` — threshold selection, alert rate, lead time, false-alert metrics
+- `12_loeo_validation.ipynb` — Leave-One-Event-Out validation across known depeg events
 
-### Feature pipeline
-- **FeatureEngineer** (`src/features/feature_engineering.py`) — builds ~74 features per coin
-  (price momentum, on-chain flows, Curve DEX pressure, market context, cross-coin, temporal, lags).
-  Output: `data/processed/features/{coin}_5m_features.parquet`
-- **PooledDataset** (`src/features/build_pooled_dataset.py`) — selects the 76 common columns,
-  adds `coin_key`, stacks all 7 coins. Output: `data/processed/features/pooled_5m.parquet`
-  (3.3M rows, 9.68% depeg rate, target = `depeg_next_1h`)
-- Full feature reference: `src/features/README.md`
+Archived scripts (for reference): `archive/src/`
 
 ## Storage
 

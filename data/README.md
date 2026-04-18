@@ -23,7 +23,9 @@ and `processed/cleansed/` (clean + labeled, modeling-ready).
 CSV copies mirror the same structure in `csv/processed/merged/` and `csv/processed/cleansed/`.
 
 `processed/merged/{coin}_5m_raw.parquet` — all sources joined, no cleaning applied (NaNs intact).
-`processed/cleansed/{coin}_5m.parquet` — zero-filled, forward-filled, anomaly-patched, and labeled. Use these for modeling.
+`processed/cleansed/{coin}_5m.parquet` — zero-filled, forward-filled, anomaly-patched, and labeled. Raw columns only — derived features (e.g. `total_net_flow_usd`) are computed in the feature engineering stage.
+`processed/features/{coin}_5m_features.parquet` — 68+ engineered features per coin, ready for modeling.
+`processed/features/pooled_5m.parquet` — all 7 coins stacked on 76 common columns (3.3M rows, target: `depeg_next_1h`).
 
 ---
 
@@ -177,13 +179,13 @@ Source: Dune Analytics (XRPL dataset, query 6811285). RLUSD is issued by Ripple 
 
 ### Unified Institutional Flow Signal
 
-Computed in `clean_data.py` to provide a single consistent flow signal across all coins.
+Computed in `feature_engineering.py` (not present in cleansed files — derived during feature engineering).
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `total_net_flow_usd` | float | **USDT**: `treasury_net_flow_usd + tron_treasury_net_flow_usd` (ETH + TRON treasury). **All others**: same as `net_flow_usd` (on-chain mint − burn). |
+| `total_net_flow_usd` | float | **USDT**: `treasury_net_flow_usd + tron_treasury_net_flow_usd` (ETH + TRON treasury). **All others**: `net_flow_usd` (on-chain mint − burn). Zero for UST (no ETH contract). |
 
-**Availability:** All coins except UST.
+**Availability:** All coins (zeros for UST). Present in feature files, not in cleansed files.
 
 ---
 
@@ -317,13 +319,15 @@ to compute forward labels).
 ## Data Pipeline
 
 ```
-Collection scripts      →  data/raw/{source}/          (raw + 5m aggregates per source)
-merge_sources.py        →  {coin}_5m_raw.parquet        (pure join, no cleaning)
-clean_data.py           →  {coin}_5m.parquet            (zero-fill, ffill, anomaly patch)
-label_data.py           →  {coin}_5m.parquet            (adds depeg labels in-place)
+Collection scripts        →  data/raw/{source}/                     (raw + 5m aggregates per source)
+merge_sources.py          →  processed/merged/{coin}_5m_raw.parquet (pure join, no cleaning)
+clean_data.py             →  processed/cleansed/{coin}_5m.parquet   (zero-fill, ffill, anomaly patch)
+label_data.py             →  processed/cleansed/{coin}_5m.parquet   (adds depeg labels in-place)
+feature_engineering.py    →  processed/features/{coin}_5m_features.parquet  (68 engineered features)
+build_pooled_dataset.py   →  processed/features/pooled_5m.parquet   (all 7 coins stacked, 3.3M rows)
 ```
 
-### Stage 1 — Collection (`src/data/collect_*.py`)
+### Stage 1 — Collection (`src/data_collection_scripts/collect_*.py`)
 
 Each collector fetches from its API, applies only unavoidable transformations, and writes to
 `data/raw/`. No statistical preprocessing, outlier removal, or filling at this stage.
@@ -374,14 +378,14 @@ no data for that bar.
 
 ### Stage 3 — Cleaning (`clean_data.py`)
 
-1. **Zero-fill** event columns — absence of an on-chain event means zero activity, not missing data
+1. **Zero-fill** event columns — absence of an on-chain event means zero activity, not missing data.
+   Prefixes zero-filled: `mint_`, `burn_`, `net_flow_usd`, `treasury_*`, `tron_treasury_*`,
+   `curve_*`, `sol_*` (USDC Solana), `xrpl_*` (RLUSD XRPL)
 2. **Forward-fill** daily series — FRED and Fear & Greed propagate last known value to 5m bars
 3. **Forward-fill** 5m market context — BTC/ETH closes have occasional gaps
 4. **Null + forward-fill** CoinAPI price anomalies — bars with price outside [0.50, 2.00] are
    feed errors; UST is exempt since its collapse legitimately breached those bounds
 5. **Trim head rows** — rows before the first valid price across all key columns are dropped
-6. **Compute `total_net_flow_usd`** — unified institutional flow signal (USDT: ETH + TRON
-   treasury net flow; all others: on-chain mint − burn)
 
 ---
 
