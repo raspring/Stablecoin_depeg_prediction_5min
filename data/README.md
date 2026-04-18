@@ -20,12 +20,10 @@ and `processed/cleansed/` (clean + labeled, modeling-ready).
 | `usde_5m.parquet` | Ethena USDe (USDe) | 200,928 | 40 | 2024-04-02 → 2026-02-28 | |
 | `rlusd_5m.parquet`| Ripple USD (RLUSD) | 96,192 | 45 | 2025-04-01 → 2026-02-28 | ETH + XRPL mint/burn |
 
-CSV copies mirror the same structure in `csv/processed/merged/` and `csv/processed/cleansed/`.
-
 `processed/merged/{coin}_5m_raw.parquet` — all sources joined, no cleaning applied (NaNs intact).
 `processed/cleansed/{coin}_5m.parquet` — zero-filled, forward-filled, anomaly-patched, and labeled. Raw columns only — derived features (e.g. `total_net_flow_usd`) are computed in the feature engineering stage.
-`processed/features/{coin}_5m_features.parquet` — 68+ engineered features per coin, ready for modeling.
-`processed/features/pooled_5m.parquet` — all 7 coins stacked on 76 common columns (3.3M rows, target: `depeg_next_1h`).
+`processed/features/{coin}_5m_features.parquet` — 87 engineered features per coin, ready for modeling.
+`processed/features/pooled_5m.parquet` — all 7 coins stacked (3.3M rows, target: `depeg_next_4h_down`).
 
 ---
 
@@ -179,7 +177,7 @@ Source: Dune Analytics (XRPL dataset, query 6811285). RLUSD is issued by Ripple 
 
 ### Unified Institutional Flow Signal
 
-Computed in `feature_engineering.py` (not present in cleansed files — derived during feature engineering).
+Computed in `04_feature_engineering.ipynb` (not present in cleansed files — derived during feature engineering).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -298,7 +296,7 @@ all 5m bars until the next published value.
 
 ### Labels — Depeg Prediction Targets
 
-Computed by `label_data.py`. **Depeg** is defined as 3 or more consecutive 5-minute bars where
+Computed in `02_clean_merged_data.ipynb`. **Depeg** is defined as 3 or more consecutive 5-minute bars where
 `|price_dev| > 0.005` (0.5% from peg). This 15-minute persistence requirement filters
 transient tick noise.
 
@@ -319,12 +317,12 @@ to compute forward labels).
 ## Data Pipeline
 
 ```
-Collection scripts        →  data/raw/{source}/                     (raw + 5m aggregates per source)
-merge_sources.py          →  processed/merged/{coin}_5m_raw.parquet (pure join, no cleaning)
-clean_data.py             →  processed/cleansed/{coin}_5m.parquet   (zero-fill, ffill, anomaly patch)
-label_data.py             →  processed/cleansed/{coin}_5m.parquet   (adds depeg labels in-place)
-feature_engineering.py    →  processed/features/{coin}_5m_features.parquet  (68 engineered features)
-build_pooled_dataset.py   →  processed/features/pooled_5m.parquet   (all 7 coins stacked, 3.3M rows)
+src/data_collection_scripts/collect_*.py  →  data/raw/{source}/                          (raw + 5m aggregates per source)
+notebooks/01_merge_raw_data.ipynb         →  processed/merged/{coin}_5m_raw.parquet      (pure join, no cleaning)
+notebooks/02_clean_merged_data.ipynb      →  processed/cleansed/{coin}_5m.parquet        (zero-fill, ffill, anomaly patch + depeg labels)
+notebooks/Downside_Depeg/
+  04_feature_engineering.ipynb            →  processed/features/{coin}_5m_features.parquet  (87 engineered features)
+  05_build_pooled_dataset.ipynb           →  processed/features/pooled_5m.parquet           (all 7 coins stacked, 3.3M rows)
 ```
 
 ### Stage 1 — Collection (`src/data_collection_scripts/collect_*.py`)
@@ -366,7 +364,7 @@ Each collector fetches from its API, applies only unavoidable transformations, a
 
 ---
 
-### Stage 2 — Merge (`merge_sources.py`)
+### Stage 2 — Merge (`01_merge_raw_data.ipynb`)
 
 Builds a continuous 5-min UTC index per coin from the coin's launch date to `GLOBAL_END_DATE`
 (2026-02-28 23:55 UTC). All 5-min sources are joined directly onto this index. Daily sources
@@ -376,7 +374,7 @@ no data for that bar.
 
 ---
 
-### Stage 3 — Cleaning (`clean_data.py`)
+### Stage 3 — Cleaning & Labelling (`02_clean_merged_data.ipynb`)
 
 1. **Zero-fill** event columns — absence of an on-chain event means zero activity, not missing data.
    Prefixes zero-filled: `mint_`, `burn_`, `net_flow_usd`, `treasury_*`, `tron_treasury_*`,
@@ -386,15 +384,7 @@ no data for that bar.
 4. **Null + forward-fill** CoinAPI price anomalies — bars with price outside [0.50, 2.00] are
    feed errors; UST is exempt since its collapse legitimately breached those bounds
 5. **Trim head rows** — rows before the first valid price across all key columns are dropped
-
----
-
-### Stage 4 — Labelling (`label_data.py`)
-
-Adds depeg labels in-place to `{coin}_5m.parquet`. Depeg is defined as 3 or more consecutive
-5-min bars with `|coinapi_close − peg| > 0.005`. Forward-looking labels (`depeg_next_5min`,
-`depeg_next_30min`, `depeg_next_1h`, `depeg_next_4h`) mark bars from which a depeg episode
-begins within the given horizon.
+6. **Depeg labels** — adds `depeg`, `depeg_next_5min`, `depeg_next_30min`, `depeg_next_1h`, `depeg_next_4h`, and downside variants in-place
 
 ---
 
@@ -408,6 +398,7 @@ Raw files are in `data/raw/` organized by source:
 | `raw/coinapi/` | 5m VWAP OHLCV Parquet files per coin |
 | `raw/onchain/` | Ethereum mint/burn events + USDT treasury flows (ETH + TRON) + XRPL RLUSD events + Solana USDC events |
 | `raw/curve/` | Curve pool TokenExchange events and 5m aggregations |
+| `raw/defillama/` | Daily stablecoin circulating supply |
+| `raw/omni/` | USDT Omni Layer (Bitcoin) treasury flows |
 | `raw/fred/` | Daily FRED macro data |
 | `raw/market/` | Daily BTC/ETH prices and Fear & Greed index |
-| `raw/orderbook/` | 5m order book snapshots (Kraken) |
