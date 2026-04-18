@@ -308,6 +308,10 @@ transient tick noise.
 | `depeg_next_30min` | Int8 | `1` if a depeg episode begins within the **next 6 bars** (30 min) |
 | `depeg_next_1h` | Int8 | `1` if a depeg episode begins within the **next 12 bars** (1 hour) |
 | `depeg_next_4h` | Int8 | `1` if a depeg episode begins within the **next 48 bars** (4 hours) |
+| `depeg_next_12h` | Int8 | `1` if a depeg episode begins within the **next 144 bars** (12 hours) |
+| `depeg_next_24h` | Int8 | `1` if a depeg episode begins within the **next 288 bars** (24 hours) |
+
+Each horizon also has a `_down` variant (e.g. `depeg_next_4h_down`) scoped to below-peg events only (`price_dev < −threshold`). This gives 12 forward-looking label columns in total — 6 horizons × 2 directions.
 
 `NaN` values appear only at the tail of each coin's time series (insufficient look-ahead window
 to compute forward labels).
@@ -384,7 +388,7 @@ no data for that bar.
 4. **Null + forward-fill** CoinAPI price anomalies — bars with price outside [0.50, 2.00] are
    feed errors; UST is exempt since its collapse legitimately breached those bounds
 5. **Trim head rows** — rows before the first valid price across all key columns are dropped
-6. **Depeg labels** — adds `depeg`, `depeg_next_5min`, `depeg_next_30min`, `depeg_next_1h`, `depeg_next_4h`, and downside variants in-place
+6. **Depeg labels** — adds `depeg`, `depeg_down`, and 6 forward-looking horizons (5min, 30min, 1h, 4h, 12h, 24h) each in both all-depeg and downside-only variants (12 label columns total)
 
 ---
 
