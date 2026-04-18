@@ -69,12 +69,11 @@ All post-collection processing lives in `notebooks/`:
 - `04_feature_engineering.ipynb` — ~74 features per coin → `data/processed/features/{coin}_5m_features.parquet`
 - `05_build_pooled_dataset.ipynb` — stack all coins → `data/processed/features/pooled_5m.parquet` (3.3M rows, 9.68% depeg, target = `depeg_next_1h`)
 - `06_eda_features.ipynb` — feature EDA
-- `07_depeg_event_study.ipynb` — event study around historical depegs
-- `08_feature_selection.ipynb` — variance/correlation/MI/L1/RF feature selection → `data/processed/features/selected_features.json`
-- `09_baseline_models.ipynb` — baseline ML models
-- `10_final_model.ipynb` — tuned CatBoost (Optuna 50-trial HPO), saves model + predictions
-- `11_threshold_and_ops.ipynb` — threshold selection, alert rate, lead time, false-alert metrics
-- `12_loeo_validation.ipynb` — Leave-One-Event-Out validation across known depeg events
+- `07_feature_selection.ipynb` — variance/correlation/MI/L1/RF feature selection → `data/processed/features/selected_features.json`
+- `08_baseline_models.ipynb` — baseline ML models
+- `09_final_model.ipynb` — tuned CatBoost (Optuna 50-trial HPO), saves model + predictions
+- `10_threshold_and_ops.ipynb` — threshold selection, alert rate, lead time, false-alert metrics
+- `11_loeo_validation.ipynb` — Leave-One-Event-Out validation across known depeg events
 
 Archived scripts (for reference): `archive/src/`
 

@@ -81,17 +81,16 @@ See `data/README.md` for full column reference and pipeline documentation.
 │   ├── 01_merge_raw_data.ipynb    # Shared
 │   ├── 02_clean_merged_data.ipynb # Shared
 │   ├── 03_eda.ipynb               # All-depegs EDA
+│   ├── 03b_eda_downside.ipynb
+│   ├── 04_feature_engineering.ipynb
+│   ├── 05_build_pooled_dataset.ipynb
 │   └── Downside_Depeg/            # Downside-specific modeling pipeline
-│       ├── 03b_eda_downside.ipynb
-│       ├── 04_feature_engineering.ipynb
-│       ├── 05_build_pooled_dataset.ipynb
 │       ├── 06_eda_features.ipynb
-│       ├── 07_depeg_event_study.ipynb
-│       ├── 08_feature_selection.ipynb
-│       ├── 09_baseline_models.ipynb
-│       ├── 10_final_model.ipynb
-│       ├── 11_threshold_and_ops.ipynb
-│       └── 12_loeo_validation.ipynb
+│       ├── 07_feature_selection.ipynb
+│       ├── 08_baseline_models.ipynb
+│       ├── 09_final_model.ipynb
+│       ├── 10_threshold_and_ops.ipynb
+│       └── 11_loeo_validation.ipynb
 ├── src/
 │   └── data_collection_scripts/   # Data ingestion scripts (see src/README.md)
 └── docs/                          # Reference documents and literature
