@@ -78,19 +78,8 @@ See `data/README.md` for full column reference and pipeline documentation.
 │       ├── cleansed/              # NB02 output — zero-filled, ffilled, labeled ({coin}_5m.parquet)
 │       └── features/              # NB04/05 output — engineered features + pooled dataset
 ├── notebooks/
-│   ├── 01_merge_raw_data.ipynb    # Shared
-│   ├── 02_clean_merged_data.ipynb # Shared
-│   ├── 03_eda.ipynb               # All-depegs EDA
-│   ├── 03b_eda_downside.ipynb
-│   ├── 04_feature_engineering.ipynb
-│   ├── 05_build_pooled_dataset.ipynb
-│   └── Downside_Depeg/            # Downside-specific modeling pipeline
-│       ├── 06_eda_features.ipynb
-│       ├── 07_feature_selection.ipynb
-│       ├── 08_baseline_models.ipynb
-│       ├── 09_final_model.ipynb
-│       ├── 10_threshold_and_ops.ipynb
-│       └── 11_loeo_validation.ipynb
+│   ├── 01_merge_raw_data.ipynb    # Raw source join → merged parquet
+│   └── 02_clean_merged_data.ipynb # Zero-fill, ffill, label → cleansed parquet
 ├── src/
 │   └── data_collection_scripts/   # Data ingestion scripts (see src/README.md)
 └── docs/                          # Reference documents and literature
@@ -157,14 +146,7 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/01_merge_raw_data.
 jupyter nbconvert --to notebook --execute --inplace notebooks/02_clean_merged_data.ipynb
 ```
 
-Then run the downside-depeg modeling pipeline:
-
-```bash
-jupyter nbconvert --to notebook --execute --inplace notebooks/Downside_Depeg/03b_eda_downside.ipynb
-# ... continue through 04 → 05 → 06 → 07 → 08 → 09 → 10
-```
-
-Output: `data/processed/cleansed/{coin}_5m.parquet` (NB02), `data/processed/features/` (NB04–05).
+Output: `data/processed/merged/{coin}_5m_raw.parquet` (NB01), `data/processed/cleansed/{coin}_5m.parquet` (NB02).
 
 ---
 
