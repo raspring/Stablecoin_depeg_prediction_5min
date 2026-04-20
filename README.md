@@ -76,10 +76,14 @@ See `data/README.md` for full column reference and pipeline documentation.
 │   └── processed/
 │       ├── merged/                # NB01 output — wide join, no cleaning ({coin}_5m_raw.parquet)
 │       ├── cleansed/              # NB02 output — zero-filled, ffilled, labeled ({coin}_5m.parquet)
-│       └── features/              # NB04/05 output — engineered features + pooled dataset
+│       ├── features/              # NB04/05 output — engineered features + pooled dataset
+│       └── predictions/           # NB05 output — test set predictions
 ├── notebooks/
 │   ├── 01_merge_raw_data.ipynb    # Raw source join → merged parquet
-│   └── 02_clean_merged_data.ipynb # Zero-fill, ffill, label → cleansed parquet
+│   ├── 02_clean_merged_data.ipynb # Zero-fill, ffill, label → cleansed parquet
+│   ├── 03_eda_all_coins.ipynb     # EDA + severity labelling → cleansed parquet with severity
+│   ├── 04_feature_engineering.ipynb # Feature engineering + selection → pooled_5m.parquet
+│   └── 05_modeling.ipynb          # CatBoost training, LOEO validation, predictions
 ├── src/
 │   └── data_collection_scripts/   # Data ingestion scripts (see src/README.md)
 └── docs/                          # Reference documents and literature
@@ -144,9 +148,17 @@ Run the notebooks in order from the project root:
 ```bash
 jupyter nbconvert --to notebook --execute --inplace notebooks/01_merge_raw_data.ipynb
 jupyter nbconvert --to notebook --execute --inplace notebooks/02_clean_merged_data.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/03_eda_all_coins.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/04_feature_engineering.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/05_modeling.ipynb
 ```
 
-Output: `data/processed/merged/{coin}_5m_raw.parquet` (NB01), `data/processed/cleansed/{coin}_5m.parquet` (NB02).
+Output:
+- NB01 → `data/processed/merged/{coin}_5m_raw.parquet`
+- NB02 → `data/processed/cleansed/{coin}_5m.parquet`
+- NB03 → `data/processed/cleansed/{coin}_5m_clean.parquet` (adds severity labels)
+- NB04 → `data/processed/features/pooled_5m.parquet`
+- NB05 → `data/models/` (CatBoost models), `data/processed/predictions/predictions_test.parquet`
 
 ---
 

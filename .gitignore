@@ -24,6 +24,10 @@ env/
 # macOS
 .DS_Store
 
+# R
+.Rhistory
+data/.Rhistory
+
 # IDEs
 .vscode/
 .idea/
@@ -40,3 +44,6 @@ docs/
 # Slide-building scripts
 scripts/build_*_slides.py
 catboost_info/
+
+# Claude Code
+CLAUDE.md

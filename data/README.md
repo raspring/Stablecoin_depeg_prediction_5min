@@ -22,8 +22,8 @@ and `processed/cleansed/` (clean + labeled, modeling-ready).
 
 `processed/merged/{coin}_5m_raw.parquet` — all sources joined, no cleaning applied (NaNs intact).
 `processed/cleansed/{coin}_5m.parquet` — zero-filled, forward-filled, anomaly-patched, and labeled. Raw columns only — derived features (e.g. `total_net_flow_usd`) are computed in the feature engineering stage.
-`processed/features/{coin}_5m_features.parquet` — 87 engineered features per coin, ready for modeling.
-`processed/features/pooled_5m.parquet` — all 7 coins stacked (3.3M rows, target: `depeg_next_4h_down`).
+`processed/features/{coin}_5m_features.parquet` — engineered features per coin, ready for modeling.
+`processed/features/pooled_5m.parquet` — all 7 coins stacked (3.1M rows, targets: `depeg_next_1h`, `depeg_next_30min`).
 
 ---
 
@@ -324,9 +324,9 @@ to compute forward labels).
 src/data_collection_scripts/collect_*.py  →  data/raw/{source}/                          (raw + 5m aggregates per source)
 notebooks/01_merge_raw_data.ipynb         →  processed/merged/{coin}_5m_raw.parquet      (pure join, no cleaning)
 notebooks/02_clean_merged_data.ipynb      →  processed/cleansed/{coin}_5m.parquet        (zero-fill, ffill, anomaly patch + depeg labels)
-notebooks/Downside_Depeg/
-  04_feature_engineering.ipynb            →  processed/features/{coin}_5m_features.parquet  (87 engineered features)
-  05_build_pooled_dataset.ipynb           →  processed/features/pooled_5m.parquet           (all 7 coins stacked, 3.3M rows)
+notebooks/03_eda_all_coins.ipynb          →  processed/cleansed/{coin}_5m_clean.parquet     (adds severity labels)
+notebooks/04_feature_engineering.ipynb   →  processed/features/pooled_5m.parquet           (all 7 coins stacked, 3.1M rows)
+notebooks/05_modeling.ipynb              →  data/models/ + processed/predictions/           (CatBoost models + test predictions)
 ```
 
 ### Stage 1 — Collection (`src/data_collection_scripts/collect_*.py`)

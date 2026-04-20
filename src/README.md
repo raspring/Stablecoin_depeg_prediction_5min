@@ -25,7 +25,7 @@ python src/data_collection_scripts/collect_all.py all --no-orderbook    # skip o
 python src/data_collection_scripts/collect_all.py all --no-daily        # skip FRED/market
 ```
 
-See `src/data_collection_scripts/README.md` for the full list of collectors and API key requirements.
+See `data/README.md` for the full list of collectors and API key requirements.
 
 ## Post-Collection Processing
 
