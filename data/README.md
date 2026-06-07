@@ -12,13 +12,13 @@ and `processed/cleansed/` (clean + labeled, modeling-ready).
 
 | File | Coin | Rows | Cols | Date Range | Notes |
 |------|------|-----:|-----:|------------|-------|
-| `usdt_5m.parquet` | Tether (USDT) | 897,936 | 66 | 2017-08-17 → 2026-02-28 | ETH + TRON treasury flows |
-| `usdc_5m.parquet` | USD Coin (USDC) | 775,506 | 83 | 2018-10-16 → 2026-02-28 | ETH + Solana mint/burn |
-| `dai_5m.parquet`  | Dai (DAI) | 828,963 | 45 | 2018-04-13 → 2026-02-28 | |
-| `busd_5m.parquet` | Binance USD (BUSD) | 370,848 | 40 | 2019-09-20 → 2023-03-31 | Discontinued Mar 2023 |
-| `ust_5m.parquet`  | TerraUSD (UST) | 153,961 | 44 | 2020-11-23 → 2022-05-12 | Failed May 2022; Curve only (no ETH on-chain) |
-| `usde_5m.parquet` | Ethena USDe (USDe) | 200,928 | 40 | 2024-04-02 → 2026-02-28 | |
-| `rlusd_5m.parquet`| Ripple USD (RLUSD) | 96,192 | 45 | 2025-04-01 → 2026-02-28 | ETH + XRPL mint/burn |
+| `usdt_5m.parquet` | Tether (USDT) | 897,936 | 74 | 2017-08-17 → 2026-02-28 | ETH + TRON treasury flows |
+| `usdc_5m.parquet` | USD Coin (USDC) | 775,506 | 91 | 2018-10-16 → 2026-02-28 | ETH + Solana mint/burn |
+| `dai_5m.parquet`  | Dai (DAI) | 828,963 | 53 | 2018-04-13 → 2026-02-28 | |
+| `busd_5m.parquet` | Binance USD (BUSD) | 370,848 | 48 | 2019-09-20 → 2023-03-31 | Discontinued Mar 2023 |
+| `ust_5m.parquet`  | TerraUSD (UST) | 153,961 | 53 | 2020-11-23 → 2022-05-12 | Failed May 2022; Curve only (no ETH on-chain) |
+| `usde_5m.parquet` | Ethena USDe (USDe) | 200,928 | 48 | 2024-04-02 → 2026-02-28 | |
+| `rlusd_5m.parquet`| Ripple USD (RLUSD) | 96,192 | 53 | 2025-04-01 → 2026-02-28 | ETH + XRPL mint/burn |
 
 `processed/merged/{coin}_5m_raw.parquet` — all sources joined, no cleaning applied (NaNs intact).
 `processed/cleansed/{coin}_5m.parquet` — zero-filled, forward-filled, anomaly-patched, and labeled. Raw columns only — derived features (e.g. `total_net_flow_usd`) are computed in the feature engineering stage.
@@ -139,6 +139,30 @@ cycle. Inter-treasury transfers are excluded to avoid double-counting.
 
 ---
 
+### USDT Omni Layer Treasury Flows — USDT only
+
+Source: OmniExplorer API (`collect_omni.py`). Tracks USDT Simple Send transactions to/from
+Tether's known Omni treasury address on the Bitcoin blockchain
+(`1NTMakcgVwQpMdGxRQnFKyb3G1FAJysSfz`, property ID 31).
+
+**Signal rationale:** The Omni Layer (Bitcoin) was USDT's original issuance platform; institutional
+redemption flows still pass through this address. Treasury inflow may precede open-market peg stress.
+
+Raw events: `data/raw/omni/usdt_omni_treasury.parquet`. 5-min aggregates: `data/raw/omni/usdt_omni_5m.parquet`.
+Patched into `usdt_5m.parquet` and feature files via `patch_usdt_omni.py`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `omni_treasury_inflow_count` | float | # transfers into Omni treasury (redemption pressure) |
+| `omni_treasury_inflow_volume_usd` | float | USD volume of USDT sent to Omni treasury |
+| `omni_treasury_outflow_count` | float | # transfers out of Omni treasury (re-issuance) |
+| `omni_treasury_outflow_volume_usd` | float | USD volume of USDT re-issued from Omni treasury |
+| `omni_treasury_net_flow_usd` | float | `inflow − outflow` (positive = net redemption pressure; note opposite sign convention from ETH/TRON treasury columns) |
+
+**Availability:** USDT only. Added to cleansed and feature files via `patch_usdt_omni.py`.
+
+---
+
 ### USDC Solana Mint / Burn — USDC only
 
 Source: Dune Analytics (`tokens_solana.transfers`, query 6794492) for history (Oct 2020 → Nov 2025);
@@ -157,11 +181,12 @@ Helius enhanced API for incremental updates. USDC is natively issued by Circle o
 
 ---
 
-### RLUSD XRPL Mint / Burn — RLUSD only
+### RLUSD XRPL Mint / Burn + DEX — RLUSD only
 
-Source: Dune Analytics (XRPL dataset, query 6811285). RLUSD is issued by Ripple on the XRP Ledger
+Source: `collect_xrpl.py` (XRPL public JSON-RPC, no key required — primary collector, includes DEX
+flows) and `collect_dune_xrpl.py` (Dune Analytics query 6811285 — historical bootstrap, mint/burn
+only). RLUSD is issued by Ripple on the XRP Ledger
 (currency hex: `524C555344000000000000000000000000000000`, issuer: `rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De`).
-5,559 events collected (Nov 2024 → Feb 2026).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -170,8 +195,13 @@ Source: Dune Analytics (XRPL dataset, query 6811285). RLUSD is issued by Ripple 
 | `xrpl_burn_count` | float | Number of RLUSD burn payments on XRPL (zero-filled) |
 | `xrpl_burn_volume_usd` | float | USD value of RLUSD burned on XRPL |
 | `xrpl_net_flow_usd` | float | `mint_volume − burn_volume` on XRPL |
+| `xrpl_dex_buy_count` | float | Number of RLUSD DEX buy offers (OfferCreate) in this 5m window |
+| `xrpl_dex_buy_volume_usd` | float | USD value of RLUSD acquired via XRPL DEX |
+| `xrpl_dex_sell_count` | float | Number of RLUSD DEX sell offers |
+| `xrpl_dex_sell_volume_usd` | float | USD value of RLUSD sold via XRPL DEX |
+| `xrpl_dex_net_volume_usd` | float | `buy_volume − sell_volume` (positive = net buying pressure on DEX) |
 
-**Availability:** RLUSD only.
+**Availability:** RLUSD only. DEX columns only present when collected via `collect_xrpl.py` (not the Dune bootstrap).
 
 ---
 
@@ -181,7 +211,7 @@ Computed in `04_feature_engineering.ipynb` (not present in cleansed files — de
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `total_net_flow_usd` | float | **USDT**: `treasury_net_flow_usd + tron_treasury_net_flow_usd` (ETH + TRON treasury). **All others**: `net_flow_usd` (on-chain mint − burn). Zero for UST (no ETH contract). |
+| `total_net_flow_usd` | float | **USDT**: `treasury_net_flow_usd + tron_treasury_net_flow_usd + omni_treasury_net_flow_usd` (ETH + TRON + Omni treasury). **All others**: `net_flow_usd` (on-chain mint − burn). Zero for UST (no ETH contract). |
 
 **Availability:** All coins (zeros for UST). Present in feature files, not in cleansed files.
 
@@ -281,6 +311,47 @@ all 5m bars until the next published value.
 
 ---
 
+### Circulating Supply — DeFiLlama (daily, forward-filled to 5m)
+
+Source: DeFiLlama stablecoin API (`collect_defillama.py`). Daily `peggedUSD` circulating supply
+for all 7 stablecoins. Output: `data/raw/defillama/mcap_daily.parquet`. Forward-filled to 5m
+in the merge step. All 7 columns are included in every coin's dataset as cross-coin supply signals.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `usdt_mcap` | float | USDT circulating supply (USD, all chains) |
+| `usdc_mcap` | float | USDC circulating supply (USD, all chains) |
+| `dai_mcap` | float | DAI circulating supply (USD) |
+| `busd_mcap` | float | BUSD circulating supply (USD) |
+| `ust_mcap` | float | UST circulating supply (USD; collapses to ~zero in May 2022) |
+| `usde_mcap` | float | USDe circulating supply (USD) |
+| `rlusd_mcap` | float | RLUSD circulating supply (USD) |
+
+---
+
+### Order Book Snapshots — CoinAPI Market Data (5m aggregated)
+
+Source: CoinAPI Market Data API (`collect_orderbook.py`). Requires `COINAPI_MARKETDATA_KEY`
+(separate from the Indexes API key). Per-snapshot metrics aggregated to 5-min windows (mean + std).
+Output: `data/raw/orderbook/{coin}_orderbook_5m.parquet`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `obi_1pct_mean` | float | Mean order book imbalance within 1% of mid: `(bid_vol − ask_vol) / (bid_vol + ask_vol)`; range [−1, +1], negative = selling pressure |
+| `obi_1pct_std` | float | Std dev of OBI (1%) across snapshots in the 5m window |
+| `obi_2pct_mean` | float | Mean OBI within 2% of mid price |
+| `obi_2pct_std` | float | Std dev of OBI (2%) |
+| `spread_bps_mean` | float | Mean best bid/ask spread in basis points |
+| `spread_bps_std` | float | Std dev of spread (bps) |
+| `bid_slope_mean` | float | Mean bid-side slope: cumulative volume regressed against price distance from mid; steeper = thinner book |
+| `bid_slope_std` | float | Std dev of bid slope |
+| `ask_slope_mean` | float | Mean ask-side slope |
+| `ask_slope_std` | float | Std dev of ask slope |
+
+**Availability:** Coins with `orderbook_symbol` configured in `config/settings.py`.
+
+---
+
 ### Metadata
 
 | Column | Type | Description |
@@ -303,15 +374,22 @@ transient tick noise.
 | Column | Type | Description |
 |--------|------|-------------|
 | `price_dev` | float | `coinapi_close − peg` — signed deviation from peg |
-| `depeg` | Int8 | `1` if this bar is **currently** part of a depeg episode; `0` otherwise |
+| `depeg` | Int8 | `1` if this bar is **currently** part of a depeg episode (either direction); `0` otherwise |
+| `depeg_down` | Int8 | `1` if this bar is currently part of a **below-peg** depeg episode (`price_dev < −threshold`) |
 | `depeg_next_5min` | Int8 | `1` if a depeg episode begins within the **next 1 bar** (5 min) |
+| `depeg_next_5min_down` | Int8 | Same, scoped to below-peg events only |
 | `depeg_next_30min` | Int8 | `1` if a depeg episode begins within the **next 6 bars** (30 min) |
+| `depeg_next_30min_down` | Int8 | Same, scoped to below-peg events only |
 | `depeg_next_1h` | Int8 | `1` if a depeg episode begins within the **next 12 bars** (1 hour) |
+| `depeg_next_1h_down` | Int8 | Same, scoped to below-peg events only |
 | `depeg_next_4h` | Int8 | `1` if a depeg episode begins within the **next 48 bars** (4 hours) |
+| `depeg_next_4h_down` | Int8 | Same, scoped to below-peg events only |
 | `depeg_next_12h` | Int8 | `1` if a depeg episode begins within the **next 144 bars** (12 hours) |
+| `depeg_next_12h_down` | Int8 | Same, scoped to below-peg events only |
 | `depeg_next_24h` | Int8 | `1` if a depeg episode begins within the **next 288 bars** (24 hours) |
+| `depeg_next_24h_down` | Int8 | Same, scoped to below-peg events only |
 
-Each horizon also has a `_down` variant (e.g. `depeg_next_4h_down`) scoped to below-peg events only (`price_dev < −threshold`). This gives 12 forward-looking label columns in total — 6 horizons × 2 directions.
+14 label columns total: `depeg`, `depeg_down`, and 6 horizons × 2 directions (all-depeg + downside-only).
 
 `NaN` values appear only at the tail of each coin's time series (insufficient look-ahead window
 to compute forward labels).
@@ -346,10 +424,14 @@ Each collector fetches from its API, applies only unavoidable transformations, a
 | `collect_coinapi.py` | CoinAPI VWAP (paid) | — | `raw/coinapi/{coin}_5m.parquet` |
 | `collect_onchain.py` | Etherscan V2 API | `raw/onchain/{coin}_eth_events.parquet` | `raw/onchain/{coin}_eth_5m.parquet` |
 | `collect_tron.py` | TronGrid API | `raw/onchain/usdt_tron_events.parquet` | `raw/onchain/usdt_tron_5m.parquet` |
+| `collect_omni.py` | OmniExplorer API | `raw/omni/usdt_omni_treasury.parquet` | `raw/omni/usdt_omni_5m.parquet` |
 | `collect_curve.py` | Etherscan V2 API | `raw/curve/{pool}_events.parquet` | `raw/curve/{pool}_5m.parquet` |
-| `collect_dune_xrpl.py` | Dune Analytics (XRPL) | `raw/onchain/rlusd_xrpl_events.parquet` | `raw/onchain/rlusd_xrpl_5m.parquet` |
+| `collect_xrpl.py` | XRPL public JSON-RPC | `raw/onchain/rlusd_xrpl_events.parquet` | `raw/onchain/rlusd_xrpl_5m.parquet` |
+| `collect_dune_xrpl.py` | Dune Analytics (XRPL historical) | same as above | same as above |
 | `collect_dune.py` | Dune Analytics (Solana) | `raw/onchain/usdc_sol_events_dune.parquet` | `raw/onchain/usdc_sol_5m.parquet` |
 | `collect_solana.py` | Helius API (Solana) | `raw/onchain/usdc_sol_events.parquet` | merged into `usdc_sol_5m.parquet` |
+| `collect_orderbook.py` | CoinAPI Market Data API | — | `raw/orderbook/{coin}_orderbook_5m.parquet` |
+| `collect_defillama.py` | DeFiLlama stablecoin API | `raw/defillama/mcap_daily.parquet` | — (daily, forward-filled in merge) |
 | `collect_fred.py` | FRED API | `raw/fred/macro.parquet` | — (daily, forward-filled in merge) |
 | `collect_market.py` | Alternative.me (Fear & Greed) | `raw/market/market_daily.parquet` | — (daily, forward-filled in merge) |
 
@@ -357,14 +439,19 @@ Each collector fetches from its API, applies only unavoidable transformations, a
 
 - **Etherscan** (`collect_onchain.py`, `collect_curve.py`): paginates in 100k-block chunks with
   adaptive bisection when the 1,000-result-per-page limit is hit. Checkpoints after each chunk.
-- **Dune XRPL** (`collect_dune_xrpl.py`): executes in 60-day chunks. RLUSD currency stored as
-  hex `524C555344000000000000000000000000000000`; timestamp from `_ledger_close_time_human`.
+- **XRPL RPC** (`collect_xrpl.py`): paginates the RLUSD issuer's `account_tx` in 20k-ledger chunks
+  via XRPL public JSON-RPC (no key required). Collects mint, burn, and DEX trades (OfferCreate).
+  `collect_dune_xrpl.py` provides a Dune Analytics historical bootstrap (mint/burn only, query 6811285,
+  60-day chunks); both scripts write to the same output files.
 - **Dune Solana** (`collect_dune.py`): executes in 3-week chunks (stay under Dune's 32k-row limit).
   Mints/burns from `tokens_solana.transfers` with `action IN ('mint','burn')`. Checkpoints after each chunk.
 - **Helius** (`collect_solana.py`): incremental USDC Solana updates via enhanced transaction API.
   Deduped and merged with Dune output on `tx_hash + event_type`. Only indexes back to ~Aug 2024.
 - **TronGrid** (`collect_tron.py`): inter-treasury transfers between known Tether wallets are
   excluded to avoid double-counting.
+- **patch_usdt_omni.py**: post-processing utility (not a collector). After running `collect_omni.py`
+  and the notebook pipeline, run this script to patch Omni treasury columns into `usdt_5m.parquet`,
+  recompute affected features in `usdt_5m_features.parquet`, and rebuild `pooled_5m.parquet`.
 
 ---
 
@@ -382,7 +469,7 @@ no data for that bar.
 
 1. **Zero-fill** event columns — absence of an on-chain event means zero activity, not missing data.
    Prefixes zero-filled: `mint_`, `burn_`, `net_flow_usd`, `treasury_*`, `tron_treasury_*`,
-   `curve_*`, `sol_*` (USDC Solana), `xrpl_*` (RLUSD XRPL)
+   `omni_treasury_*`, `curve_*`, `sol_*` (USDC Solana), `xrpl_*` (RLUSD XRPL)
 2. **Forward-fill** daily series — FRED and Fear & Greed propagate last known value to 5m bars
 3. **Forward-fill** 5m market context — BTC/ETH closes have occasional gaps
 4. **Null + forward-fill** CoinAPI price anomalies — bars with price outside [0.50, 2.00] are
@@ -402,6 +489,7 @@ Raw files are in `data/raw/` organized by source:
 | `raw/coinapi/` | 5m VWAP OHLCV Parquet files per coin |
 | `raw/onchain/` | Ethereum mint/burn events + USDT treasury flows (ETH + TRON) + XRPL RLUSD events + Solana USDC events |
 | `raw/curve/` | Curve pool TokenExchange events and 5m aggregations |
+| `raw/orderbook/` | CoinAPI Market Data order book snapshots aggregated to 5m per coin |
 | `raw/defillama/` | Daily stablecoin circulating supply |
 | `raw/omni/` | USDT Omni Layer (Bitcoin) treasury flows |
 | `raw/fred/` | Daily FRED macro data |

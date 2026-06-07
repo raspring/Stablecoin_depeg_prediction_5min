@@ -83,7 +83,8 @@ See `data/README.md` for full column reference and pipeline documentation.
 │   ├── 02_clean_merged_data.ipynb # Zero-fill, ffill, label → cleansed parquet
 │   ├── 03_eda_all_coins.ipynb     # EDA + severity labelling → cleansed parquet with severity
 │   ├── 04_feature_engineering.ipynb # Feature engineering + selection → pooled_5m.parquet
-│   └── 05_modeling.ipynb          # CatBoost training, LOEO validation, predictions
+│   ├── 05_modeling.ipynb          # CatBoost training, LOEO validation, predictions
+│   └── 05_modeling_processed.ipynb # Post-processing and reporting on model outputs
 ├── src/
 │   └── data_collection_scripts/   # Data ingestion scripts (see src/README.md)
 └── docs/                          # Reference documents and literature
@@ -166,10 +167,10 @@ Output:
 
 | Coin | Rows | Columns | Date Range |
 |------|-----:|--------:|------------|
-| USDT | 897,936 | 66 | Aug 2017 → Feb 2026 |
-| USDC | 775,506 | 45 | Oct 2018 → Feb 2026 |
-| DAI | 828,963 | 45 | Dec 2017 → Feb 2026 |
-| BUSD | 370,848 | 30 | Sep 2019 → Mar 2023 |
-| UST | 153,961 | 24 | Sep 2020 → May 2022 |
-| USDe | 200,928 | 40 | Apr 2024 → Feb 2026 |
-| RLUSD | 96,192 | 40 | Apr 2025 → Feb 2026 |
+| USDT | 897,936 | 74 | Aug 2017 → Feb 2026 |
+| USDC | 775,506 | 91 | Oct 2018 → Feb 2026 |
+| DAI | 828,963 | 53 | Dec 2017 → Feb 2026 |
+| BUSD | 370,848 | 48 | Sep 2019 → Mar 2023 |
+| UST | 153,961 | 53 | Sep 2020 → May 2022 |
+| USDe | 200,928 | 48 | Apr 2024 → Feb 2026 |
+| RLUSD | 96,192 | 53 | Apr 2025 → Feb 2026 |
